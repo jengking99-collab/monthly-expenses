@@ -286,6 +286,7 @@ export default function App() {
   const [statTab,  setStatTab]  = useState("month");
   const [statYear, setStatYear] = useState(today.getFullYear());
   const fileRef = useRef();
+  const jsonRef = useRef();
   const isMobile = useMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -511,6 +512,63 @@ export default function App() {
     e.target.value = "";
   };
 
+  // ── 전체 데이터 JSON 내보내기 ──
+  const exportAllData = () => {
+    const backup = {
+      version: "1.5.0",
+      exportedAt: new Date().toISOString(),
+      [LS_BASE]: loadLS(LS_BASE, null),
+      [LS_DATA]: loadLS(LS_DATA, {}),
+      [LS_META]: loadLS(LS_META, {}),
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `월지출관리_백업_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("전체 데이터 내보내기 완료 ✓");
+  };
+
+  // ── 전체 데이터 JSON 가져오기 ──
+  const handleImportAll = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = "";
+    if (!window.confirm(`"${file.name}" 파일로 전체 데이터를 복원하시겠습니까?\n현재 데이터가 덮어씌워집니다.`)) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const backup = JSON.parse(ev.target.result);
+        if (!backup[LS_DATA] && !backup[LS_BASE]) throw new Error("올바른 백업 파일이 아닙니다");
+        if (backup[LS_DATA]) {
+          localStorage.setItem(LS_DATA, JSON.stringify(backup[LS_DATA]));
+          setData(backup[LS_DATA]);
+        }
+        if (backup[LS_BASE]) {
+          localStorage.setItem(LS_BASE, JSON.stringify(backup[LS_BASE]));
+          const versions = parseFixedVersions(backup[LS_BASE]);
+          setFixedVersions(versions);
+          const latest = versions.length > 0
+            ? [...versions].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
+            : null;
+          setFixed(latest ? latest.items.map(fi => ({ ...fi })) : []);
+        }
+        if (backup[LS_META]) {
+          if (backup[LS_META].year)  setYear(backup[LS_META].year);
+          if (backup[LS_META].month) setMonth(backup[LS_META].month);
+        }
+        showToast("전체 데이터 가져오기 완료 ✓");
+      } catch (err) {
+        showToast("가져오기 실패: " + err.message, "error");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // ── Excel export: 고정항목 ──
   const exportFixedExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -582,6 +640,8 @@ export default function App() {
         onExportFixed={exportFixedExcel}
         onImport={() => fileRef.current.click()}
         onStats={() => { setModal("stats"); setStatTab("month"); closeSidebar(); }}
+        onExportAll={exportAllData}
+        onImportAll={() => jsonRef.current.click()}
       />
 
       <main style={css.main}>
@@ -732,6 +792,7 @@ export default function App() {
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}
       <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display:"none" }} onChange={handleImport} />
+      <input ref={jsonRef} type="file" accept=".json"      style={{ display:"none" }} onChange={handleImportAll} />
     </div>
   );
 }
@@ -739,7 +800,7 @@ export default function App() {
 // ─────────────────────────────────────────────
 //  SIDEBAR
 // ─────────────────────────────────────────────
-function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, isMobile, sidebarOpen, onClose }) {
+function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, onExportAll, onImportAll, isMobile, sidebarOpen, onClose }) {
   const isCurrentYear = today.getFullYear() === year;
   const sidebarStyle = isMobile
     ? { ...css.sidebar, position:"fixed", top:0, left:0, height:"100vh", zIndex:200,
@@ -794,6 +855,8 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
           { icon:"⬆️", label:"고정항목 가져오기", fn: onImport,      col: G.amber  },
           { icon:"📊", label:"통계 보기",         fn: onStats,       col: G.purple },
           { icon:"🧮", label:"계산기",             fn: () => window.electronAPI?.openCalculator?.(), col: G.teal },
+          { icon:"📤", label:"전체 내보내기(JSON)", fn: onExportAll,  col: G.blue   },
+          { icon:"📥", label:"전체 가져오기(JSON)", fn: onImportAll,  col: G.amber  },
         ].map(({ icon, label, fn, col }) => (
           <button key={label} onClick={fn}
             style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", borderRadius:10, cursor:"pointer", color:col, fontSize:12, border:"none", background:"none", fontFamily:"inherit", width:"100%", textAlign:"left" }}>

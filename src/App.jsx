@@ -524,7 +524,7 @@ export default function App() {
   // ── 전체 데이터 JSON 내보내기 ──
   const exportAllData = () => {
     const backup = {
-      version: "1.5.0",
+      version: "2.0.0",
       exportedAt: new Date().toISOString(),
       [LS_BASE]: loadLS(LS_BASE, null),
       [LS_DATA]: loadLS(LS_DATA, {}),
@@ -595,14 +595,14 @@ export default function App() {
     }
   }, [syncKey]);
 
-  const pullSync = useCallback(async () => {
+  const pullSync = useCallback(async (silent = false) => {
     if (!syncKey || !isFirebaseReady || !db) return false;
     setSyncStatus("syncing");
     try {
       const snap = await getDoc(doc(db, "sync", syncKey));
       if (!snap.exists()) {
         setSyncStatus("idle");
-        showToast("클라우드에 저장된 데이터가 없습니다. 이 기기가 첫 번째입니다.");
+        if (!silent) showToast("클라우드에 저장된 데이터가 없습니다. 이 기기가 첫 번째입니다.");
         return false;
       }
       const remote = snap.data();
@@ -623,11 +623,11 @@ export default function App() {
       }
       setSyncStatus("synced");
       setLastSyncAt(new Date());
-      showToast("클라우드에서 데이터를 가져왔습니다 ✓");
+      if (!silent) showToast("클라우드에서 데이터를 가져왔습니다 ✓");
       return true;
     } catch(e) {
       setSyncStatus("error");
-      showToast("동기화 실패: " + e.message, "error");
+      if (!silent) showToast("동기화 실패: " + e.message, "error");
       return false;
     }
   }, [syncKey]);
@@ -648,6 +648,12 @@ export default function App() {
     setLastSyncAt(null);
     showToast("동기화 연결이 해제되었습니다.");
   };
+
+  // ── Auto-pull on mount (syncKey 설정된 경우 앱 로드 시 자동 가져오기) ──
+  useEffect(() => {
+    if (syncKey && isFirebaseReady) pullSync(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Auto-push on data change (debounce 5s) ──
   useEffect(() => {
@@ -988,7 +994,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V1.5.0</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.0_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}

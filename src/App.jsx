@@ -96,6 +96,19 @@ const css = {
 };
 
 // ─────────────────────────────────────────────
+//  HOOKS
+// ─────────────────────────────────────────────
+function useMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return isMobile;
+}
+
+// ─────────────────────────────────────────────
 //  SHARED COMPONENTS
 // ─────────────────────────────────────────────
 const Btn = ({ children, variant = "default", onClick, style = {}, ...p }) => {
@@ -273,6 +286,8 @@ export default function App() {
   const [statTab,  setStatTab]  = useState("month");
   const [statYear, setStatYear] = useState(today.getFullYear());
   const fileRef = useRef();
+  const isMobile = useMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // ── Auto-persist ──
   useEffect(() => { localStorage.setItem(LS_META, JSON.stringify({ year, month })); }, [year, month]);
@@ -547,39 +562,59 @@ export default function App() {
 
   const bankRefDay = bank.date ? (() => { const bd = new Date(bank.date); return bd.getFullYear()===year&&bd.getMonth()+1===month?bd.getDate():0; })() : 0;
 
+  const closeSidebar = () => setSidebarOpen(false);
+  const scardMobile = isMobile ? { flex: "1 1 calc(50% - 5px)", minWidth: 0 } : {};
+
   return (
     <div style={css.app}>
+      {/* 모바일 사이드바 backdrop */}
+      {isMobile && sidebarOpen && (
+        <div onClick={closeSidebar}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:199, backdropFilter:"blur(2px)" }} />
+      )}
+
       <Sidebar
         year={year} month={month} today={today}
-        onSelectYear={y => setYear(y)}
-        onSelectMonth={m => setMonth(m)}
-        onFixedTab={() => setTab("fixed")}
+        isMobile={isMobile} sidebarOpen={sidebarOpen} onClose={closeSidebar}
+        onSelectYear={y => { setYear(y); closeSidebar(); }}
+        onSelectMonth={m => { setMonth(m); closeSidebar(); }}
+        onFixedTab={() => { setTab("fixed"); closeSidebar(); }}
         onExportFixed={exportFixedExcel}
         onImport={() => fileRef.current.click()}
-        onStats={() => { setModal("stats"); setStatTab("month"); }}
+        onStats={() => { setModal("stats"); setStatTab("month"); closeSidebar(); }}
       />
 
       <main style={css.main}>
         {/* Topbar */}
-        <div style={css.topbar}>
-          <div>
-            <div style={{ fontSize:20, fontWeight:700, letterSpacing:"-0.5px" }}>{year}년 {month}월 지출관리</div>
-            <div style={{ fontSize:12, color:G.tm, marginTop:2 }}>
-              오늘: {today.getFullYear()}.{pad(today.getMonth()+1)}.{pad(today.getDate())} ({WD[today.getDay()]})
+        <div style={{ ...css.topbar, flexWrap:"wrap", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, flex:1, minWidth:0 }}>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(true)}
+                style={{ flexShrink:0, background:"none", border:`1px solid ${G.bd}`, borderRadius:8, color:G.t1, fontSize:18, padding:"4px 10px", cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>
+                ☰
+              </button>
+            )}
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize: isMobile ? 16 : 20, fontWeight:700, letterSpacing:"-0.5px" }}>{year}년 {month}월 지출관리</div>
+              {!isMobile && (
+                <div style={{ fontSize:12, color:G.tm, marginTop:2 }}>
+                  오늘: {today.getFullYear()}.{pad(today.getMonth()+1)}.{pad(today.getDate())} ({WD[today.getDay()]})
+                </div>
+              )}
             </div>
           </div>
-          <div style={{ display:"flex", gap:6 }}>
+          <div style={{ display:"flex", gap:6, flexShrink:0 }}>
             <Btn onClick={() => setModal("bank")}>🏦 잔액 설정</Btn>
             <Btn variant="primary" onClick={() => setModal("add")}>＋ 항목 추가</Btn>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div style={css.sumRow}>
-          <SummaryCard label="국민은행 잔액" badge={<BankBadge type="kb"/>} amount={fmtW(liveKb)} color={G.blue}  sub={bankSub} live={isCurMonth} />
-          <SummaryCard label="신한은행 잔액" badge={<BankBadge type="sh"/>} amount={fmtW(liveSh)} color={G.blue}  sub={bankSub} live={isCurMonth} />
-          <SummaryCard label="이번 달 총 지출" amount={fmtW(totExp)} color={G.red}   sub="고정+수동 합산" />
-          <SummaryCard label="이번 달 총 수입" amount={fmtW(totInc)} color={G.green} sub="고정+수동 합산" />
+        <div style={{ ...css.sumRow, flexWrap:"wrap" }}>
+          <SummaryCard label="국민은행 잔액" badge={<BankBadge type="kb"/>} amount={fmtW(liveKb)} color={G.blue}  sub={bankSub} live={isCurMonth} cardStyle={scardMobile} />
+          <SummaryCard label="신한은행 잔액" badge={<BankBadge type="sh"/>} amount={fmtW(liveSh)} color={G.blue}  sub={bankSub} live={isCurMonth} cardStyle={scardMobile} />
+          <SummaryCard label="이번 달 총 지출" amount={fmtW(totExp)} color={G.red}   sub="고정+수동 합산" cardStyle={scardMobile} />
+          <SummaryCard label="이번 달 총 수입" amount={fmtW(totInc)} color={G.green} sub="고정+수동 합산" cardStyle={scardMobile} />
         </div>
 
         {/* Content */}
@@ -704,13 +739,24 @@ export default function App() {
 // ─────────────────────────────────────────────
 //  SIDEBAR
 // ─────────────────────────────────────────────
-function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats }) {
+function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, isMobile, sidebarOpen, onClose }) {
   const isCurrentYear = today.getFullYear() === year;
+  const sidebarStyle = isMobile
+    ? { ...css.sidebar, position:"fixed", top:0, left:0, height:"100vh", zIndex:200,
+        transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+        transition:"transform 0.25s ease",
+        boxShadow: sidebarOpen ? "4px 0 24px rgba(0,0,0,0.5)" : "none" }
+    : css.sidebar;
   return (
-    <aside style={css.sidebar}>
-      <div style={css.logo}>
-        💰 <span style={{ color:G.blue }}>월 지출관리</span>
-        <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V1.5.0</small>
+    <aside style={sidebarStyle}>
+      <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V1.5.0</small>
+        </span>
+        {isMobile && (
+          <button onClick={onClose}
+            style={{ background:"none", border:"none", color:G.t2, fontSize:16, cursor:"pointer", padding:"2px 4px", fontFamily:"inherit" }}>✕</button>
+        )}
       </div>
 
       {/* 년도 선택 */}
@@ -762,9 +808,9 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
 // ─────────────────────────────────────────────
 //  SUMMARY CARD
 // ─────────────────────────────────────────────
-function SummaryCard({ label, badge, amount, color, sub, live }) {
+function SummaryCard({ label, badge, amount, color, sub, live, cardStyle }) {
   return (
-    <div style={css.scard}>
+    <div style={{ ...css.scard, ...cardStyle }}>
       <div style={{ fontSize:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.8px", color:G.tm, marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
         {badge} {label}
         {live && <span style={{ fontSize:9, padding:"1px 5px", borderRadius:3, background:G.greenDim, color:G.green, marginLeft:2 }}>실시간</span>}

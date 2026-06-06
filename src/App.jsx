@@ -88,7 +88,7 @@ const css = {
   topbar:  { padding:"18px 24px 0", display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexShrink:0 },
   sumRow:  { padding:"14px 24px", display:"flex", gap:10, flexShrink:0 },
   scard:   { flex:1, background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, padding:"14px 16px", minWidth:0 },
-  content: { padding:"0 24px 24px", flex:1, overflowY:"auto", minHeight:0 },
+  content: { padding:"0 24px 24px", flex:1, overflow:"hidden", minHeight:0, display:"flex", flexDirection:"column" },
   tabBar:  { display:"flex", gap:4, marginBottom:14, flexShrink:0 },
   tblWrap: { background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip", marginBottom:16 },
   fiWrap:  { background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip", marginBottom:16 },
@@ -782,8 +782,8 @@ export default function App() {
         {/* Content */}
         <div ref={contentRef} style={css.content}>
 
-          {/* ── 고정 헤더 영역 (TabBar + 탭별 제목/버튼 + 컬럼 헤더) ── */}
-          <div style={{ position:"sticky", top:0, zIndex:10, background:G.bg }}>
+          {/* ── 고정 헤더 영역 (TabBar + 탭별 제목/버튼) ── */}
+          <div style={{ flexShrink:0, background:G.bg }}>
 
             {/* TabBar */}
             <div style={{ display:"flex", gap:4, marginBottom:12, paddingTop:14 }}>
@@ -840,7 +840,7 @@ export default function App() {
 
           </div>
           {/* ── 스크롤 영역 (테이블만) ── */}
-          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} contentRef={contentRef} compact={compactDaily} />}
+          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} compact={compactDaily} />}
           {tab==="fixed"  && <FixedTab fixed={fixed} onUpdate={updateFixed} onDel={delFixed} onAdd={addFixed} />}
         </div>
       </main>
@@ -974,7 +974,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.2_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.3_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1062,92 +1062,100 @@ function SummaryCard({ label, badge, amount, color, sub, live, cardStyle, compac
 // ─────────────────────────────────────────────
 //  DAILY TAB
 // ─────────────────────────────────────────────
-function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual, contentRef, compact }) {
+function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual, compact }) {
   const isToday = (d) => year===today.getFullYear() && month===today.getMonth()+1 && d===today.getDate();
   const isPast  = (d) => new Date(year, month-1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const todayRef = useRef();
+  const scrollRef = useRef();
   useEffect(() => {
-    if (!todayRef.current || !contentRef?.current) return;
+    if (!todayRef.current || !scrollRef.current) return;
     const row = todayRef.current;
-    const container = contentRef.current;
+    const container = scrollRef.current;
     const rowRect = row.getBoundingClientRect();
     const contRect = container.getBoundingClientRect();
     const newTop = container.scrollTop + rowRect.top - contRect.top - container.clientHeight / 2 + rowRect.height / 2;
     container.scrollTop = Math.max(0, newTop);
   }, [month]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-      <div style={{ overflowX:"auto", marginBottom:16 }}>
-      <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip", minWidth: compact ? 0 : 1026 }}>
-          <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth: compact ? 0 : 1026 }}>
-            <colgroup>
-              {compact ? (
-                <><col style={{ width:80 }} /><col /><col style={{ width:70 }} /><col style={{ width:40 }} /></>
-              ) : (
-                <><col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
-                <col style={{ width:82 }} /><col style={{ width:82 }} />
-                <col style={{ width:102 }} /><col style={{ width:102 }} /><col style={{ width:102 }} />
-                <col style={{ width:46 }} /></>
-              )}
-            </colgroup>
-            <thead>
-              <tr>
-                {(compact
-                  ? ["날짜","지출 내역","일 지출","추가"]
-                  : ["날짜","수입 내역","이체 내역","지출 내역","일 수입","일 지출","국민 잔액","신한 잔액","합계","추가"]
-                ).map((h, i) => (
-                  <th key={h} style={{ background:"rgba(255,255,255,0.03)", padding:"9px 12px", textAlign: compact?(i===2?"right":"left"):(i>=4&&i<=8?"right":"left"), fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: dim }, (_, i) => i + 1).map(d => {
-                const dt  = new Date(year, month - 1, d);
-                const dow = dt.getDay();
-                const isTd  = isToday(d);
-                const isPst = isPast(d);
-                const dayInc = dayMap[d].inc.reduce((s, it) => s + it.amount, 0);
-                const dayExp = dayMap[d].exp.reduce((s, it) => s + it.amount, 0);
-                const kbB  = refDay > 0 || carryover.hasData ? (balKb[d] ?? null) : null;
-                const shB  = refDay > 0 || carryover.hasData ? (balSh[d] ?? null) : null;
-                const totB = kbB !== null && shB !== null ? kbB + shB : null;
+  const thBase = { position:"sticky", top:0, background:G.bgc, padding:"9px 12px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" };
 
-                return (
-                  <tr key={d} ref={isTd ? todayRef : null}
-                    style={{ background: isTd?"rgba(74,158,255,0.07)":"", ...(isPst?{opacity:0.55}:{}) }}>
-                    <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}`, whiteSpace:"nowrap", fontWeight:600 }}>
-                      {isTd && <PulseDot />}
-                      <WeekDay dow={dow} />
-                      <span style={{ color: isTd?G.blue:undefined }}>{d}</span>
-                      {d === 1 && carryover.hasData && <span style={{ fontSize:8, padding:"1px 4px", borderRadius:3, background:G.blueDim, color:G.blue, marginLeft:3 }}>이월</span>}
-                    </td>
-                    {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
-                      <Tags items={dayMap[d].inc} typeOverride="inc" onDel={onDelManual} onEdit={onEditManual} />
-                    </td>}
-                    {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
-                      <TransferTags items={dayMap[d].trs} onDel={onDelManual} onEdit={onEditManual} />
-                    </td>}
-                    <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
-                      <Tags items={dayMap[d].exp} typeOverride="exp" onDel={onDelManual} onEdit={onEditManual} />
-                    </td>
-                    {!compact && <NumCell val={dayInc} prefix="+" color={G.green} zero />}
-                    <NumCell val={dayExp} prefix="-" color={G.red}   zero />
-                    {!compact && <BalCell val={kbB} />}
-                    {!compact && <BalCell val={shB} />}
-                    {!compact && <BalCell val={totB} bold />}
-                    <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
-                      <button onClick={() => onAddDay(d)}
-                        style={{ display:"inline-flex", alignItems:"center", gap:2, padding:"2px 7px", borderRadius:12, fontSize:10, cursor:"pointer", border:`1px dashed rgba(255,255,255,0.12)`, background:"none", color:G.tm, fontFamily:"inherit" }}>
-                        ＋
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-      </div>
-      </div>
+  return (
+    <div ref={scrollRef} style={{ flex:1, minHeight:0, overflow:"auto", background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, marginBottom:16 }}>
+      <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth: compact?0:1026 }}>
+        <colgroup>
+          {compact ? (
+            <><col style={{ width:80 }} /><col /><col style={{ width:70 }} /><col style={{ width:40 }} /></>
+          ) : (
+            <><col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
+            <col style={{ width:82 }} /><col style={{ width:82 }} />
+            <col style={{ width:102 }} /><col style={{ width:102 }} /><col style={{ width:102 }} />
+            <col style={{ width:46 }} /></>
+          )}
+        </colgroup>
+        <thead>
+          <tr>
+            {(compact
+              ? ["날짜","지출 내역","일 지출","추가"]
+              : ["날짜","수입 내역","이체 내역","지출 내역","일 수입","일 지출","국민 잔액","신한 잔액","합계","추가"]
+            ).map((h, i) => (
+              <th key={h} style={{
+                ...thBase,
+                textAlign: compact?(i===2?"right":"left"):(i>=4&&i<=8?"right":"left"),
+                ...(!compact && i===0 ? { left:0, zIndex:4 } : { zIndex:3 }),
+              }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: dim }, (_, i) => i + 1).map(d => {
+            const dt  = new Date(year, month - 1, d);
+            const dow = dt.getDay();
+            const isTd  = isToday(d);
+            const isPst = isPast(d);
+            const dayInc = dayMap[d].inc.reduce((s, it) => s + it.amount, 0);
+            const dayExp = dayMap[d].exp.reduce((s, it) => s + it.amount, 0);
+            const kbB  = refDay > 0 || carryover.hasData ? (balKb[d] ?? null) : null;
+            const shB  = refDay > 0 || carryover.hasData ? (balSh[d] ?? null) : null;
+            const totB = kbB !== null && shB !== null ? kbB + shB : null;
+
+            return (
+              <tr key={d} ref={isTd ? todayRef : null}
+                style={{ background: isTd?"rgba(74,158,255,0.07)":"", ...(isPst?{opacity:0.55}:{}) }}>
+                <td style={{
+                  padding:"8px 12px", borderBottom:`1px solid ${G.bdl}`, whiteSpace:"nowrap", fontWeight:600,
+                  ...(!compact ? { position:"sticky", left:0, zIndex:1, background: isTd?"rgba(74,158,255,0.07)":G.bgc } : {}),
+                }}>
+                  {isTd && <PulseDot />}
+                  <WeekDay dow={dow} />
+                  <span style={{ color: isTd?G.blue:undefined }}>{d}</span>
+                  {d === 1 && carryover.hasData && <span style={{ fontSize:8, padding:"1px 4px", borderRadius:3, background:G.blueDim, color:G.blue, marginLeft:3 }}>이월</span>}
+                </td>
+                {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                  <Tags items={dayMap[d].inc} typeOverride="inc" onDel={onDelManual} onEdit={onEditManual} />
+                </td>}
+                {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                  <TransferTags items={dayMap[d].trs} onDel={onDelManual} onEdit={onEditManual} />
+                </td>}
+                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                  <Tags items={dayMap[d].exp} typeOverride="exp" onDel={onDelManual} onEdit={onEditManual} />
+                </td>
+                {!compact && <NumCell val={dayInc} prefix="+" color={G.green} zero />}
+                <NumCell val={dayExp} prefix="-" color={G.red}   zero />
+                {!compact && <BalCell val={kbB} />}
+                {!compact && <BalCell val={shB} />}
+                {!compact && <BalCell val={totB} bold />}
+                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                  <button onClick={() => onAddDay(d)}
+                    style={{ display:"inline-flex", alignItems:"center", gap:2, padding:"2px 7px", borderRadius:12, fontSize:10, cursor:"pointer", border:`1px dashed rgba(255,255,255,0.12)`, background:"none", color:G.tm, fontFamily:"inherit" }}>
+                    ＋
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -1159,51 +1167,64 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
 // ─────────────────────────────────────────────
 function FixedTab({ fixed, onUpdate, onDel, onAdd }) {
   const sorted = [...fixed].sort((a, b) => a.day - b.day);
-  const cellSt = { padding:"8px 10px", fontSize:12 };
-  const hdrSt  = { ...cellSt, fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px" };
-  const inSt   = { width:"100%", background:"none", border:"none", color:G.t1, fontSize:12, fontFamily:"inherit", outline:"none" };
-  const selSt  = { ...inSt, cursor:"pointer", appearance:"none" };
+  const inSt  = { width:"100%", background:"none", border:"none", color:G.t1, fontSize:12, fontFamily:"inherit", outline:"none" };
+  const selSt = { ...inSt, cursor:"pointer", appearance:"none" };
+  const thSt  = { position:"sticky", top:0, background:G.bgc, padding:"9px 12px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" };
+  const tdSt  = { padding:"8px 10px", fontSize:12, borderBottom:`1px solid ${G.bdl}` };
 
   return (
-      <div style={{ overflowX:"auto", marginBottom:16 }}>
-      <div style={{ ...css.fiWrap, marginBottom:0, minWidth:538 }}>
-        <div style={{ display:"grid", gridTemplateColumns:"46px minmax(150px,1fr) 110px 110px 72px 50px", borderBottom:`1px solid ${G.bd}`, background:"rgba(255,255,255,0.03)" }}>
-          {["일","항목명","자산","금액(원)","구분","삭제"].map(h => (
-            <div key={h} style={{ padding:"8px 10px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px" }}>{h}</div>
-          ))}
-        </div>
-        {sorted.map(fi => {
-          const isInc  = fi.type === "income";
-          const rowCol = isInc ? G.red : G.t1;
-          const rowInSt  = { ...inSt,  color: rowCol };
-          const rowSelSt = { ...selSt, color: rowCol };
-          return (
-          <div key={fi.id} style={{ display:"grid", gridTemplateColumns:"46px minmax(150px,1fr) 110px 110px 72px 50px", alignItems:"center", borderBottom:`1px solid ${G.bdl}`, background: isInc ? G.redDim : "transparent" }}>
-            <div style={cellSt}><input style={{...rowInSt,width:36,textAlign:"center"}} type="number" min={1} max={31} defaultValue={fi.day} onBlur={e=>onUpdate(fi.id,"day",e.target.value)} /></div>
-            <div style={cellSt}><input style={rowInSt} type="text" defaultValue={fi.name} onBlur={e=>onUpdate(fi.id,"name",e.target.value)} /></div>
-            <div style={cellSt}>
-              <select style={rowSelSt} defaultValue={fi.asset} onChange={e=>onUpdate(fi.id,"asset",e.target.value)}>
-                {ASSETS.map(a => <option key={a} style={{ background:G.bg2 }}>{a}</option>)}
-              </select>
-            </div>
-            <div style={cellSt}><CommaInput style={{...rowInSt,textAlign:"right"}} value={fi.amount} onBlur={v=>onUpdate(fi.id,"amount",v)} /></div>
-            <div style={cellSt}>
-              <select style={rowSelSt} defaultValue={fi.type} onChange={e=>onUpdate(fi.id,"type",e.target.value)}>
-                <option value="income"  style={{ background:G.bg2 }}>수입</option>
-                <option value="expense" style={{ background:G.bg2 }}>지출</option>
-              </select>
-            </div>
-            <div style={cellSt}>
-              <button onClick={() => onDel(fi.id)} style={{ padding:"3px 6px", borderRadius:6, background:"none", border:"none", color:G.tm, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>✕</button>
-            </div>
-          </div>
-          );
-        })}
-        <button onClick={onAdd} style={{ display:"flex", alignItems:"center", gap:5, padding:"9px 12px", background:"none", border:"none", color:G.tm, fontSize:12, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
-          ＋ 새 고정 항목 추가
-        </button>
-      </div>
-      </div>
+    <div style={{ flex:1, minHeight:0, overflow:"auto", background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, marginBottom:16 }}>
+      <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth:538 }}>
+        <colgroup>
+          <col style={{ width:46 }} /><col /><col style={{ width:110 }} /><col style={{ width:110 }} /><col style={{ width:72 }} /><col style={{ width:50 }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th style={{ ...thSt, position:"sticky", left:0, zIndex:4 }}>일</th>
+            <th style={{ ...thSt, zIndex:3 }}>항목명</th>
+            <th style={{ ...thSt, zIndex:3 }}>자산</th>
+            <th style={{ ...thSt, zIndex:3, textAlign:"right" }}>금액(원)</th>
+            <th style={{ ...thSt, zIndex:3 }}>구분</th>
+            <th style={{ ...thSt, zIndex:3 }}>삭제</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(fi => {
+            const isInc    = fi.type === "income";
+            const rowCol   = isInc ? G.red : G.t1;
+            const rowBg    = isInc ? G.redDim : G.bgc;
+            const rowInSt  = { ...inSt,  color:rowCol };
+            const rowSelSt = { ...selSt, color:rowCol };
+            return (
+              <tr key={fi.id} style={{ background: isInc ? G.redDim : "transparent" }}>
+                <td style={{ ...tdSt, position:"sticky", left:0, zIndex:1, background:rowBg }}>
+                  <input style={{...rowInSt,width:36,textAlign:"center"}} type="number" min={1} max={31} defaultValue={fi.day} onBlur={e=>onUpdate(fi.id,"day",e.target.value)} />
+                </td>
+                <td style={tdSt}><input style={rowInSt} type="text" defaultValue={fi.name} onBlur={e=>onUpdate(fi.id,"name",e.target.value)} /></td>
+                <td style={tdSt}>
+                  <select style={rowSelSt} defaultValue={fi.asset} onChange={e=>onUpdate(fi.id,"asset",e.target.value)}>
+                    {ASSETS.map(a => <option key={a} style={{ background:G.bg2 }}>{a}</option>)}
+                  </select>
+                </td>
+                <td style={{ ...tdSt, textAlign:"right" }}><CommaInput style={{...rowInSt,textAlign:"right"}} value={fi.amount} onBlur={v=>onUpdate(fi.id,"amount",v)} /></td>
+                <td style={tdSt}>
+                  <select style={rowSelSt} defaultValue={fi.type} onChange={e=>onUpdate(fi.id,"type",e.target.value)}>
+                    <option value="income"  style={{ background:G.bg2 }}>수입</option>
+                    <option value="expense" style={{ background:G.bg2 }}>지출</option>
+                  </select>
+                </td>
+                <td style={tdSt}>
+                  <button onClick={() => onDel(fi.id)} style={{ padding:"3px 6px", borderRadius:6, background:"none", border:"none", color:G.tm, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>✕</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <button onClick={onAdd} style={{ display:"flex", alignItems:"center", gap:5, padding:"9px 12px", background:"none", border:"none", color:G.tm, fontSize:12, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+        ＋ 새 고정 항목 추가
+      </button>
+    </div>
   );
 }
 

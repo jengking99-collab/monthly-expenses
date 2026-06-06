@@ -1,6 +1,6 @@
 {
   "name": "monthly-expenses",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "월 지출관리",
   "main": "electron/main.cjs",
   "private": true,

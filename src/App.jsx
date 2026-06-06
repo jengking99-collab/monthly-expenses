@@ -995,7 +995,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.4_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.5_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1105,7 +1105,7 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
       <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth: compact?0:1026 }}>
         <colgroup>
           {compact ? (
-            <><col style={{ width:80 }} /><col /><col style={{ width:70 }} /><col style={{ width:40 }} /></>
+            <><col style={{ width:80 }} /><col /><col style={{ width:70 }} /><col style={{ width:80 }} /></>
           ) : (
             <><col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
             <col style={{ width:82 }} /><col style={{ width:82 }} />
@@ -1116,12 +1116,12 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
         <thead>
           <tr>
             {(compact
-              ? ["날짜","지출 내역","일 지출","추가"]
+              ? ["날짜","지출 내역","일 지출","잔액"]
               : ["날짜","수입 내역","이체 내역","지출 내역","일 수입","일 지출","국민 잔액","신한 잔액","합계","추가"]
             ).map((h, i) => (
               <th key={h} style={{
                 ...thBase,
-                textAlign: compact?(i===2?"right":"left"):(i>=4&&i<=8?"right":"left"),
+                textAlign: compact?(i>=2?"right":"left"):(i>=4&&i<=8?"right":"left"),
                 ...(!compact && i===0 ? { left:0, zIndex:4 } : { zIndex:3 }),
               }}>{h}</th>
             ))}
@@ -1165,12 +1165,13 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
                 {!compact && <BalCell val={kbB} />}
                 {!compact && <BalCell val={shB} />}
                 {!compact && <BalCell val={totB} bold />}
-                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                {compact && <BalCell val={totB} bold />}
+                {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                   <button onClick={() => onAddDay(d)}
                     style={{ display:"inline-flex", alignItems:"center", gap:2, padding:"2px 7px", borderRadius:12, fontSize:10, cursor:"pointer", border:`1px dashed rgba(255,255,255,0.12)`, background:"none", color:G.tm, fontFamily:"inherit" }}>
                     ＋
                   </button>
-                </td>
+                </td>}
               </tr>
             );
           })}

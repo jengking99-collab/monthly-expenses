@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>월 지출관리 웹 버전 개발 절차서</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #080b12;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Slide Stage ── */
+    #stage {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      transform-origin: top left;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      background: #0f1117;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .slide.active { display: flex; }
+
+    /* ── Color Palette ── */
+    :root {
+      --blue:    #4a9eff;
+      --green:   #34d399;
+      --amber:   #fbbf24;
+      --purple:  #a78bfa;
+      --red:     #f87171;
+      --t1:      #e8eaf0;
+      --t2:      #8b92a8;
+      --tm:      #5a6070;
+      --bg:      #0f1117;
+      --bgc:     #1a1d27;
+      --bd:      #2a2f40;
+      --bds:     rgba(74,158,255,0.3);
+    }
+
+    /* ── Slide Header Bar ── */
+    .slide-header {
+      flex-shrink: 0;
+      height: 5px;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+    }
+
+    /* ── Slide Layout ── */
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 52px 72px 44px;
+      gap: 0;
+      min-height: 0;
+    }
+
+    .slide-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 10px;
+    }
+
+    .slide-title {
+      font-size: 38px;
+      font-weight: 700;
+      color: var(--t1);
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    .slide-title .accent { color: var(--blue); }
+
+    .slide-subtitle {
+      font-size: 16px;
+      color: var(--t2);
+      margin-bottom: 36px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--bd);
+      margin-bottom: 36px;
+    }
+
+    /* ── Text Content ── */
+    ul.body-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    ul.body-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 17px;
+      color: var(--t1);
+      line-height: 1.55;
+    }
+    ul.body-list li .dot {
+      flex-shrink: 0;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--blue);
+      margin-top: 8px;
+    }
+    ul.body-list li .sub {
+      font-size: 13px;
+      color: var(--t2);
+      margin-top: 2px;
+    }
+    ul.body-list li strong { color: var(--blue); }
+
+    /* ── Cards ── */
+    .card-row {
+      display: flex;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .card {
+      flex: 1;
+      background: var(--bgc);
+      border: 1px solid var(--bd);
+      border-radius: 16px;
+      padding: 28px 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card.blue  { border-color: rgba(74,158,255,0.4); }
+    .card.green { border-color: rgba(52,211,153,0.4); }
+    .card.amber { border-color: rgba(251,191,36,0.4); }
+    .card.purple{ border-color: rgba(167,139,250,0.4); }
+
+    .card-icon { font-size: 32px; margin-bottom: 4px; }
+    .card-name { font-size: 20px; font-weight: 700; color: var(--t1); }
+    .card-desc { font-size: 13px; color: var(--t2); line-height: 1.5; }
+    .card-tag  {
+      display: inline-block;
+      background: var(--bgc);
+      border: 1px solid var(--bd);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 11px;
+      color: var(--t2);
+      margin-top: auto;
+    }
+    .card.blue  .card-tag { color: var(--blue);   border-color: rgba(74,158,255,0.4); }
+    .card.green .card-tag { color: var(--green);  border-color: rgba(52,211,153,0.4); }
+    .card.amber .card-tag { color: var(--amber);  border-color: rgba(251,191,36,0.4); }
+    .card.purple.card-tag { color: var(--purple); border-color: rgba(167,139,250,0.4); }
+
+    .card ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .card ul li { font-size: 13.5px; color: var(--t1); display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+    .card ul li::before { content: "›"; color: var(--blue); font-size: 16px; line-height: 1.3; flex-shrink: 0; }
+    .card.green ul li::before { color: var(--green); }
+    .card.amber ul li::before { color: var(--amber); }
+    .card.purple ul li::before { color: var(--purple); }
+
+    /* ── Code Block ── */
+    pre {
+      background: #11141f;
+      border: 1px solid var(--bd);
+      border-radius: 10px;
+      padding: 20px 22px;
+      font-family: 'Consolas', 'D2Coding', monospace;
+      font-size: 13px;
+      color: #c9d1e0;
+      line-height: 1.7;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    pre .c  { color: #5a6880; }
+    pre .kw { color: var(--purple); }
+    pre .st { color: var(--green); }
+    pre .cm { color: var(--amber); }
+    pre .hl { color: var(--blue); }
+    pre .em { color: var(--red); }
+
+    /* ── Step List ── */
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+    }
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(74,158,255,0.15);
+      border: 1px solid rgba(74,158,255,0.4);
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-content { flex: 1; }
+    .step-title { font-size: 16px; font-weight: 600; color: var(--t1); margin-bottom: 3px; }
+    .step-desc  { font-size: 13px; color: var(--t2); line-height: 1.5; }
+
+    /* ── Flow Diagram ── */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: nowrap;
+      flex: 1;
+      justify-content: center;
+    }
+    .flow-box {
+      background: var(--bgc);
+      border: 1px solid var(--bd);
+      border-radius: 12px;
+      padding: 18px 20px;
+      text-align: center;
+      min-width: 140px;
+      flex-shrink: 0;
+    }
+    .flow-box.blue   { border-color: rgba(74,158,255,0.5);  background: rgba(74,158,255,0.07); }
+    .flow-box.green  { border-color: rgba(52,211,153,0.5);  background: rgba(52,211,153,0.07); }
+    .flow-box.amber  { border-color: rgba(251,191,36,0.5);  background: rgba(251,191,36,0.07); }
+    .flow-box.purple { border-color: rgba(167,139,250,0.5); background: rgba(167,139,250,0.07); }
+    .flow-icon  { font-size: 28px; margin-bottom: 6px; }
+    .flow-name  { font-size: 14px; font-weight: 700; color: var(--t1); margin-bottom: 4px; }
+    .flow-sub   { font-size: 11px; color: var(--t2); line-height: 1.4; }
+    .flow-arrow {
+      font-size: 22px;
+      color: var(--tm);
+      padding: 0 8px;
+      flex-shrink: 0;
+    }
+    .flow-arrow.down { transform: rotate(90deg); }
+
+    /* ── Table ── */
+    table.info-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    table.info-table th {
+      background: rgba(74,158,255,0.1);
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--bd);
+    }
+    table.info-table td {
+      padding: 11px 16px;
+      color: var(--t1);
+      border-bottom: 1px solid rgba(42,47,64,0.6);
+      vertical-align: top;
+      line-height: 1.5;
+    }
+    table.info-table td.muted { color: var(--t2); font-size: 13px; }
+    table.info-table td code {
+      background: var(--bgc);
+      border: 1px solid var(--bd);
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-family: 'Consolas', monospace;
+      font-size: 12px;
+      color: var(--green);
+    }
+
+    /* ── Two-column layout ── */
+    .two-col {
+      display: flex;
+      gap: 28px;
+      flex: 1;
+      min-height: 0;
+    }
+    .col { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+    .col-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--bd);
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge.blue   { background: rgba(74,158,255,0.15);  color: var(--blue); }
+    .badge.green  { background: rgba(52,211,153,0.15);  color: var(--green); }
+    .badge.amber  { background: rgba(251,191,36,0.15);  color: var(--amber); }
+    .badge.purple { background: rgba(167,139,250,0.15); color: var(--purple); }
+
+    /* ── Cover Slide ── */
+    .cover-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 0 80px;
+      gap: 0;
+    }
+    .cover-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 20px;
+    }
+    .cover-title {
+      font-size: 52px;
+      font-weight: 800;
+      color: var(--t1);
+      line-height: 1.15;
+      margin-bottom: 14px;
+    }
+    .cover-title .accent { color: var(--blue); }
+    .cover-subtitle {
+      font-size: 20px;
+      color: var(--t2);
+      margin-bottom: 40px;
+      line-height: 1.5;
+    }
+    .cover-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .cover-deco {
+      position: absolute;
+      right: 60px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      opacity: 0.12;
+    }
+    .cover-deco-circle {
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      border: 2px solid var(--blue);
+    }
+
+    /* ── TOC Slide ── */
+    .toc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      flex: 1;
+    }
+    .toc-item {
+      background: var(--bgc);
+      border: 1px solid var(--bd);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: default;
+    }
+    .toc-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(74,158,255,0.12);
+      color: var(--blue);
+      font-size: 16px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .toc-text { font-size: 15px; font-weight: 600; color: var(--t1); }
+    .toc-sub  { font-size: 12px; color: var(--t2); margin-top: 2px; }
+
+    /* ── Highlight Box ── */
+    .info-box {
+      background: rgba(74,158,255,0.06);
+      border: 1px solid rgba(74,158,255,0.25);
+      border-left: 3px solid var(--blue);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--t2);
+      line-height: 1.6;
+    }
+    .warn-box {
+      background: rgba(251,191,36,0.06);
+      border: 1px solid rgba(251,191,36,0.25);
+      border-left: 3px solid var(--amber);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--t2);
+      line-height: 1.6;
+    }
+    .warn-box strong, .info-box strong { color: var(--t1); }
+
+    /* ── Checklist ── */
+    .checklist {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      flex: 1;
+    }
+    .check-group { display: flex; flex-direction: column; gap: 6px; }
+    .check-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--blue);
+      margin-bottom: 4px;
+    }
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13.5px;
+      color: var(--t1);
+    }
+    .check-box {
+      width: 18px;
+      height: 18px;
+      border: 1.5px solid var(--bd);
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    /* ── Navigation ── */
+    #nav {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(26,29,39,0.92);
+      border: 1px solid var(--bd);
+      border-radius: 30px;
+      padding: 8px 20px;
+      backdrop-filter: blur(8px);
+      z-index: 100;
+    }
+    #nav button {
+      background: none;
+      border: none;
+      color: var(--t1);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 8px;
+      transition: background 0.15s;
+      line-height: 1;
+    }
+    #nav button:hover { background: rgba(255,255,255,0.08); }
+    #nav button:disabled { color: var(--tm); cursor: default; }
+    #nav button:disabled:hover { background: none; }
+    #counter {
+      font-size: 13px;
+      color: var(--t2);
+      min-width: 52px;
+      text-align: center;
+    }
+
+    /* Progress bar */
+    #progress {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: var(--blue);
+      transition: width 0.25s;
+      z-index: 200;
+    }
+
+    /* ── Print styles (PDF export) ── */
+    @media print {
+      body { background: white; overflow: visible; min-height: auto; }
+      #nav, #progress { display: none; }
+      #stage { transform: none !important; width: 297mm; height: 167mm; }
+      .slide { position: relative; display: flex !important; page-break-after: always; break-after: page; }
+      .slide:last-child { page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="stage">
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 1 · 표지 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide active">
+    <div class="slide-header"></div>
+    <div class="cover-body" style="position:relative;">
+      <div class="cover-deco">
+        <div class="cover-deco-circle"></div>
+        <div class="cover-deco-circle" style="width:200px;height:200px;margin-left:60px;border-color:rgba(167,139,250,0.8)"></div>
+      </div>
+      <div class="cover-eyebrow">Development Procedure · V2.3_Web</div>
+      <div class="cover-title">월 지출관리<br><span class="accent">웹 버전</span><br>개발 절차서</div>
+      <div class="cover-subtitle">GitHub · Vercel · Firebase<br>3-Service 연동 가이드</div>
+      <div class="cover-meta">
+        <span class="badge blue">📅 2026.06.06</span>
+        <span class="badge purple">🌐 monthly-expenses-navy.vercel.app</span>
+        <span class="badge green">✅ 운영 중</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 2 · 목차 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Contents</div>
+      <div class="slide-title">목차</div>
+      <div class="divider"></div>
+      <div class="toc-grid">
+        <div class="toc-item">
+          <div class="toc-num">1</div>
+          <div><div class="toc-text">사용 서비스 개요</div><div class="toc-sub">GitHub · Vercel · Firebase 역할 소개</div></div>
+        </div>
+        <div class="toc-item">
+          <div class="toc-num">2</div>
+          <div><div class="toc-text">서비스 연동 아키텍처</div><div class="toc-sub">전체 흐름도 · 배포 파이프라인 · 동기화</div></div>
+        </div>
+        <div class="toc-item">
+          <div class="toc-num">3</div>
+          <div><div class="toc-text">초기 설정 절차</div><div class="toc-sub">GitHub · Vercel · Firebase 구성 단계</div></div>
+        </div>
+        <div class="toc-item">
+          <div class="toc-num">4</div>
+          <div><div class="toc-text">개발 & 배포 절차</div><div class="toc-sub">로컬 개발 → git push → Vercel 배포</div></div>
+        </div>
+        <div class="toc-item">
+          <div class="toc-num">5</div>
+          <div><div class="toc-text">유지보수 절차</div><div class="toc-sub">월간 점검 · 의존성 업데이트 · 모니터링</div></div>
+        </div>
+        <div class="toc-item">
+          <div class="toc-num">6</div>
+          <div><div class="toc-text">백업 & 복원 절차</div><div class="toc-sub">코드 · 데이터 · 서비스 장애 대응</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 3 · 서비스 3개 카드 개요 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 1 · 서비스 개요</div>
+      <div class="slide-title">3가지 서비스 역할 개요</div>
+      <div class="slide-subtitle">무료 플랜만으로 완전한 웹 앱 운영 인프라를 구성합니다</div>
+      <div class="card-row">
+        <div class="card blue">
+          <div class="card-icon">🐙</div>
+          <div class="card-name">GitHub</div>
+          <div class="card-desc">소스 코드의 유일한 원본(Single Source of Truth). 모든 변경 이력을 추적하고 Vercel 자동 배포를 트리거합니다.</div>
+          <ul>
+            <li>코드 버전 관리 (git)</li>
+            <li>브랜치 전략 (master / feature/*)</li>
+            <li>Vercel Webhook 자동 호출</li>
+            <li>코드 백업 & 협업 플랫폼</li>
+          </ul>
+          <div class="card-tag">Free 플랜 · 무료</div>
+        </div>
+        <div class="card green">
+          <div class="card-icon">▲</div>
+          <div class="card-name">Vercel</div>
+          <div class="card-desc">GitHub 코드를 자동 빌드하여 전 세계 CDN에 배포. push 한 번으로 60~90초 안에 전 세계에 반영됩니다.</div>
+          <ul>
+            <li>자동 CI/CD 파이프라인</li>
+            <li>글로벌 CDN 호스팅</li>
+            <li>환경변수 안전 관리</li>
+            <li>즉각 롤백 & 미리보기 URL</li>
+          </ul>
+          <div class="card-tag">Hobby 플랜 · 무료</div>
+        </div>
+        <div class="card amber">
+          <div class="card-icon">🔥</div>
+          <div class="card-name">Firebase</div>
+          <div class="card-desc">서버 없이 기기 간 데이터를 동기화합니다. 모바일에서 입력하면 PC에서 자동으로 반영됩니다.</div>
+          <ul>
+            <li>Firestore NoSQL 데이터베이스</li>
+            <li>실시간 기기 간 동기화</li>
+            <li>syncKey 기반 접근 제어</li>
+            <li>오프라인 장애 시 로컬 동작</li>
+          </ul>
+          <div class="card-tag">Spark 플랜 · 무료</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 4 · GitHub 상세 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 1 · GitHub</div>
+      <div class="slide-title">🐙 GitHub — 코드 버전 관리</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">핵심 역할</div>
+          <ul class="body-list">
+            <li><span class="dot"></span><div><div>코드 저장 — 원격 서버에 소스코드 안전 보관</div><div class="sub">모든 커밋 이력 영구 보존</div></div></li>
+            <li><span class="dot"></span><div><div>버전 관리 — 언제든 과거 버전으로 복귀</div><div class="sub">git revert / git checkout</div></div></li>
+            <li><span class="dot"></span><div><div>배포 트리거 — master push → Vercel Webhook</div><div class="sub">코드 변경 즉시 자동 배포 시작</div></div></li>
+          </ul>
+          <div class="info-box" style="margin-top:12px;">
+            <strong>이 프로젝트 저장소</strong><br>
+            github.com/jengking99-collab/monthly-expenses
+          </div>
+        </div>
+        <div class="col">
+          <div class="col-title">브랜치 전략</div>
+          <pre><span class="cm">master</span>  ──●──────●──────●──  <span class="c">(운영, 자동 배포)</span>
+              \            /
+<span class="hl">feature/xxx</span>  ●──●──●────      <span class="c">(개발, preview URL)</span></pre>
+          <div class="col-title" style="margin-top:8px;">주요 명령어</div>
+          <pre><span class="c"># 변경사항 저장</span>
+<span class="kw">git</span> add src/App.jsx
+<span class="kw">git</span> commit -m <span class="st">"feat(v2.4): 기능명"</span>
+
+<span class="c"># 운영 배포 (Vercel 트리거)</span>
+<span class="kw">git</span> push origin master</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 5 · Vercel 상세 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 1 · Vercel</div>
+      <div class="slide-title">▲ Vercel — 자동 빌드 & 호스팅</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">빌드 설정</div>
+          <table class="info-table">
+            <tr><th>항목</th><th>설정값</th></tr>
+            <tr><td>Framework</td><td><code>Vite</code></td></tr>
+            <tr><td>Build Command</td><td><code>npm run build</code></td></tr>
+            <tr><td>Output Dir</td><td><code>dist</code></td></tr>
+            <tr><td>Node.js</td><td><code>20.x</code></td></tr>
+          </table>
+          <div class="col-title" style="margin-top:12px;">배포 소요 시간</div>
+          <pre><span class="c">git push     →  Webhook  →  build 시작</span>
+npm install  <span class="c">~20초</span>
+npm run build <span class="c">~20초</span>
+CDN 전파     <span class="c">~30초</span>
+<span class="hl">총 약 60~90초</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-title">핵심 기능</div>
+          <ul class="body-list">
+            <li><span class="dot"></span><div><div><strong>자동 CI/CD</strong></div><div class="sub">push 감지 → 빌드 → 배포까지 완전 자동</div></div></li>
+            <li><span class="dot"></span><div><div><strong>글로벌 CDN</strong></div><div class="sub">전 세계 엣지 서버 → 빠른 로딩</div></div></li>
+            <li><span class="dot"></span><div><div><strong>환경변수 관리</strong></div><div class="sub">VITE_FIREBASE_* 변수 안전 주입</div></div></li>
+            <li><span class="dot"></span><div><div><strong>즉각 롤백</strong></div><div class="sub">대시보드에서 이전 배포로 10초 내 전환</div></div></li>
+            <li><span class="dot"></span><div><div><strong>미리보기 URL</strong></div><div class="sub">feature/* 브랜치 push 시 별도 URL 자동 생성</div></div></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 6 · Firebase 상세 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 1 · Firebase</div>
+      <div class="slide-title">🔥 Firebase — 기기 간 데이터 동기화</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">Firestore 데이터 구조</div>
+          <pre>Firestore
+└── sync/
+    └── <span class="hl">{syncKey}</span>          <span class="c">← 사용자 비밀 키</span>
+        ├── <span class="kw">data</span>: string   <span class="c">← 월별 지출 데이터</span>
+        ├── <span class="kw">fixed_base</span>: string <span class="c">← 고정항목 이력</span>
+        └── <span class="kw">updatedAt</span>: timestamp</pre>
+          <div class="col-title" style="margin-top:12px;">무료 한도 (Spark 플랜)</div>
+          <table class="info-table">
+            <tr><th>항목</th><th>무료 한도</th><th>실사용</th></tr>
+            <tr><td>읽기</td><td>50,000건/일</td><td class="muted">~100건/일</td></tr>
+            <tr><td>쓰기</td><td>20,000건/일</td><td class="muted">~50건/일</td></tr>
+            <tr><td>저장</td><td>1 GiB</td><td class="muted">~1 MB</td></tr>
+          </table>
+        </div>
+        <div class="col">
+          <div class="col-title">동기화 방향</div>
+          <ul class="body-list">
+            <li><span class="dot"></span><div><div><strong>앱 → Firestore (자동 push)</strong></div><div class="sub">데이터 변경 후 5초 debounce → 자동 전송</div></div></li>
+            <li><span class="dot"></span><div><div><strong>Firestore → 앱 (자동 pull)</strong></div><div class="sub">앱 시작 시 silent pull — 항상 최신 상태</div></div></li>
+            <li><span class="dot"></span><div><div><strong>수동 동기화</strong></div><div class="sub">사이드바 동기화 버튼 → 즉시 pull</div></div></li>
+          </ul>
+          <div class="warn-box" style="margin-top:8px;">
+            ⚠️ <strong>보안 원칙</strong><br>
+            syncKey가 유일한 접근 제어 수단입니다.<br>
+            타인과 공유하지 마세요.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 7 · 전체 아키텍처 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 2 · 연동 아키텍처</div>
+      <div class="slide-title">전체 서비스 연동 구조</div>
+      <div class="slide-subtitle">개발자 PC → GitHub → Vercel → 브라우저 ↔ Firebase</div>
+      <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:20px;">
+        <div class="flow">
+          <div class="flow-box blue">
+            <div class="flow-icon">💻</div>
+            <div class="flow-name">개발자 PC</div>
+            <div class="flow-sub">코드 수정<br>npm run dev<br>git push</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" style="border-color:rgba(255,255,255,0.2)">
+            <div class="flow-icon">🐙</div>
+            <div class="flow-name">GitHub</div>
+            <div class="flow-sub">코드 저장소<br>Webhook 트리거</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box green">
+            <div class="flow-icon">▲</div>
+            <div class="flow-name">Vercel</div>
+            <div class="flow-sub">자동 빌드<br>CDN 배포</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box blue">
+            <div class="flow-icon">🌐</div>
+            <div class="flow-name">브라우저</div>
+            <div class="flow-sub">React 앱<br>모바일/PC</div>
+          </div>
+          <div class="flow-arrow">↕</div>
+          <div class="flow-box amber">
+            <div class="flow-icon">🔥</div>
+            <div class="flow-name">Firebase</div>
+            <div class="flow-sub">Firestore DB<br>실시간 동기화</div>
+          </div>
+        </div>
+        <div class="info-box">
+          <strong>핵심 포인트:</strong> 개발자는 코드만 push합니다. 나머지(빌드·배포·CDN 전파)는 모두 자동으로 처리됩니다.<br>
+          Firebase 동기화도 앱이 자동으로 수행하므로 별도 서버 없이 기기 간 데이터 공유가 가능합니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 8 · 배포 파이프라인 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 2 · 배포 파이프라인</div>
+      <div class="slide-title">코드 변경 → 사용자 반영 흐름</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">단계별 흐름</div>
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <div class="step-title">코드 수정 & 커밋</div>
+                <div class="step-desc">src/App.jsx 수정 → git add → git commit</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <div class="step-title">GitHub에 push</div>
+                <div class="step-desc">git push origin master → Webhook 자동 발송</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <div class="step-title">Vercel 자동 빌드</div>
+                <div class="step-desc">npm install + npm run build → dist/ 생성 (~40초)</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">4</div>
+              <div class="step-content">
+                <div class="step-title">CDN 전파</div>
+                <div class="step-desc">전 세계 엣지 서버 캐시 업데이트 (~30초)</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">5</div>
+              <div class="step-content">
+                <div class="step-title">사용자 반영</div>
+                <div class="step-desc">웹 앱 접속 → 새 버전 자동 적용 (총 60~90초)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="col-title">배포 확인 방법</div>
+          <table class="info-table">
+            <tr><th>확인 항목</th><th>방법</th></tr>
+            <tr><td>빌드 성공</td><td class="muted">Vercel 대시보드 → Deployments</td></tr>
+            <tr><td>실패 원인</td><td class="muted">Build Logs 탭 확인</td></tr>
+            <tr><td>버전 반영</td><td class="muted">앱 사이드바 버전 문자열</td></tr>
+            <tr><td>런타임 오류</td><td class="muted">브라우저 F12 → Console</td></tr>
+          </table>
+          <div class="warn-box" style="margin-top:12px;">
+            ⚠️ <strong>Vercel 환경변수 필수</strong><br>
+            VITE_FIREBASE_* 변수가 Vercel에 등록되지 않으면 빌드는 성공해도 Firebase 연결이 안 됩니다.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 9 · 데이터 동기화 & 환경변수 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 2 · 데이터 흐름</div>
+      <div class="slide-title">데이터 동기화 & 환경변수 흐름</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">기기 간 동기화 흐름</div>
+          <pre><span class="hl">[모바일]</span>          <span class="cm">[Firebase]</span>          <span class="green">[PC]</span>
+
+지출 입력
+↓ (5초 후 자동 push)
+─────────────────────►
+                      데이터 저장
+                      ◄─────────────────
+                      앱 시작 시 auto pull
+                      ─────────────────►
+                                        최신 데이터 표시</pre>
+          <div class="info-box" style="margin-top:10px;">
+            Firebase 장애 시에도 <strong>localStorage</strong>에 데이터가 보존되어<br>
+            앱이 계속 동작합니다. 데이터 손실 없음.
+          </div>
+        </div>
+        <div class="col">
+          <div class="col-title">환경변수 주입 경로</div>
+          <pre><span class="hl">Firebase Console</span> → SDK 설정값 복사
+          │
+          ├──► <span class="kw">.env.local</span>         <span class="c">(개발 환경)</span>
+          │    ← gitignore, 로컬 전용
+          │    → <span class="st">npm run dev</span>에서 번들에 주입
+          │
+          └──► <span class="kw">Vercel 환경변수</span>    <span class="c">(운영 환경)</span>
+               → <span class="st">npm run build</span>에서 번들에 주입
+               → dist/ 파일에 포함되어 배포</pre>
+          <div class="warn-box" style="margin-top:10px;">
+            ⚠️ <strong>.env.local은 git에 커밋 금지</strong><br>
+            .gitignore에 반드시 포함 확인
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 10 · 초기 설정 개요 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 3 · 초기 설정</div>
+      <div class="slide-title">초기 설정 3단계 개요</div>
+      <div class="slide-subtitle">처음 구성할 때 순서대로 진행합니다 (이미 구성된 경우 클론만 하면 됩니다)</div>
+      <div class="card-row">
+        <div class="card blue">
+          <div class="card-icon">① 🐙</div>
+          <div class="card-name">GitHub 설정</div>
+          <ul>
+            <li>계정 생성 / 로그인</li>
+            <li>새 저장소 생성</li>
+            <li>로컬 저장소 연결 및 push</li>
+            <li>.gitignore 확인</li>
+          </ul>
+          <div class="card-tag">약 5분</div>
+        </div>
+        <div class="card green">
+          <div class="card-icon">② ▲</div>
+          <div class="card-name">Vercel 설정</div>
+          <ul>
+            <li>GitHub 계정으로 로그인</li>
+            <li>GitHub 저장소 Import</li>
+            <li>빌드 설정 확인 (Vite 자동 감지)</li>
+            <li>환경변수 6개 등록 ← 중요!</li>
+            <li>Deploy 실행 및 URL 확인</li>
+          </ul>
+          <div class="card-tag">약 10분</div>
+        </div>
+        <div class="card amber">
+          <div class="card-icon">③ 🔥</div>
+          <div class="card-name">Firebase 설정</div>
+          <ul>
+            <li>Google 계정으로 로그인</li>
+            <li>새 프로젝트 생성</li>
+            <li>Firestore 데이터베이스 생성</li>
+            <li>보안 규칙 설정 및 게시</li>
+            <li>앱 등록 → SDK 설정값 복사</li>
+          </ul>
+          <div class="card-tag">약 10분</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 11 · GitHub 초기 설정 상세 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 3 · GitHub 초기 설정</div>
+      <div class="slide-title">🐙 GitHub 저장소 초기 설정</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <div class="step-title">계정 생성 및 로그인</div>
+                <div class="step-desc">github.com → Sign up (또는 Sign in)</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <div class="step-title">새 저장소 생성</div>
+                <div class="step-desc">+ New repository → 이름 입력 → Create repository</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <div class="step-title">로컬 저장소 연결 & push</div>
+                <div class="step-desc">remote add origin → branch -M master → push</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">4</div>
+              <div class="step-content">
+                <div class="step-title">.gitignore 확인</div>
+                <div class="step-desc">.env.local / node_modules / dist 포함 여부 확인</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="col-title">터미널 명령어</div>
+          <pre><span class="c"># 저장소 연결</span>
+<span class="kw">git</span> remote add origin \
+  https://github.com/<span class="hl">{계정}</span>/<span class="hl">{저장소}</span>.git
+<span class="kw">git</span> branch -M master
+<span class="kw">git</span> push -u origin master</pre>
+          <div class="col-title" style="margin-top:8px;">.gitignore 필수 항목</div>
+          <pre>node_modules/
+dist/
+<span class="em">.env.local</span>      <span class="c">← Firebase 키 보호 필수</span>
+dev.log
+releases/</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 12 · Vercel 초기 설정 상세 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 3 · Vercel 초기 설정</div>
+      <div class="slide-title">▲ Vercel 프로젝트 설정</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <div class="step-title">vercel.com → GitHub로 로그인</div>
+                <div class="step-desc">GitHub 계정 연동 권장</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <div class="step-title">Add New Project → 저장소 선택</div>
+                <div class="step-desc">GitHub 저장소 목록에서 monthly-expenses 선택 → Import</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <div class="step-title">빌드 설정 확인 (자동 감지)</div>
+                <div class="step-desc">Framework: Vite / Build: npm run build / Output: dist</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num" style="background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:var(--amber);">4</div>
+              <div class="step-content">
+                <div class="step-title" style="color:var(--amber);">환경변수 등록 ← 가장 중요!</div>
+                <div class="step-desc">Settings → Environment Variables → Firebase 변수 6개 입력</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">5</div>
+              <div class="step-content">
+                <div class="step-title">Deploy → URL 확인</div>
+                <div class="step-desc">배포 완료 후 자동 생성된 URL 확인</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="col-title">등록할 환경변수 목록</div>
+          <pre><span class="hl">VITE_FIREBASE_API_KEY</span>
+<span class="hl">VITE_FIREBASE_AUTH_DOMAIN</span>
+<span class="hl">VITE_FIREBASE_PROJECT_ID</span>
+<span class="hl">VITE_FIREBASE_STORAGE_BUCKET</span>
+<span class="hl">VITE_FIREBASE_MESSAGING_SENDER_ID</span>
+<span class="hl">VITE_FIREBASE_APP_ID</span>
+
+<span class="c">→ Firebase Console에서 복사</span>
+<span class="c">→ 프로젝트 설정 → 내 앱 → SDK 구성</span></pre>
+          <div class="warn-box" style="margin-top:8px;">
+            환경변수 누락 시 빌드는 성공해도<br>Firebase 연결이 안 됩니다.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 13 · Firebase 초기 설정 상세 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 3 · Firebase 초기 설정</div>
+      <div class="slide-title">🔥 Firebase 프로젝트 설정</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <div class="step-title">console.firebase.google.com 로그인</div>
+                <div class="step-desc">Google 계정으로 로그인</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <div class="step-title">새 프로젝트 생성</div>
+                <div class="step-desc">프로젝트 추가 → 이름 입력 → 애널리틱스 비활성화 → 생성</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <div class="step-title">Firestore 데이터베이스 생성</div>
+                <div class="step-desc">빌드 → Firestore → 데이터베이스 만들기 → 프로덕션 모드<br>리전: asia-northeast3 (Seoul) 권장</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">4</div>
+              <div class="step-content">
+                <div class="step-title">보안 규칙 설정 및 게시</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">5</div>
+              <div class="step-content">
+                <div class="step-title">앱 등록 → SDK 설정값 복사</div>
+                <div class="step-desc">프로젝트 설정 → 내 앱 → 웹(&lt;/&gt;) → 등록 → firebaseConfig 복사</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="col-title">Firestore 보안 규칙</div>
+          <pre><span class="c">// Firestore → 규칙 탭에 입력 후 게시</span>
+rules_version = <span class="st">'2'</span>;
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /sync/<span class="hl">{syncKey}</span> {
+      allow read, write: <span class="kw">if true</span>;
+    }
+  }
+}</pre>
+          <div class="col-title" style="margin-top:8px;">.env.local 작성 형식</div>
+          <pre>VITE_FIREBASE_API_KEY=<span class="st">값 입력</span>
+VITE_FIREBASE_AUTH_DOMAIN=<span class="st">값 입력</span>
+VITE_FIREBASE_PROJECT_ID=<span class="st">값 입력</span>
+<span class="c">... (6개 모두 입력)</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 14 · 개발 & 배포 워크플로우 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 4 · 개발 & 배포</div>
+      <div class="slide-title">일상적인 개발 → 배포 워크플로우</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">코드 수정 → 운영 배포</div>
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-num">①</div>
+              <div class="step-content">
+                <div class="step-title">코드 수정</div>
+                <div class="step-desc">src/App.jsx 편집 (단일 파일 구조)</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">②</div>
+              <div class="step-content">
+                <div class="step-title">로컬 테스트</div>
+                <div class="step-desc">npm run dev → localhost:5173 확인</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">③</div>
+              <div class="step-content">
+                <div class="step-title">버전 업데이트</div>
+                <div class="step-desc">package.json version + App.jsx 버전 문자열</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">④</div>
+              <div class="step-content">
+                <div class="step-title">커밋 & 배포</div>
+                <div class="step-desc">git add → git commit → git push origin master</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">⑤</div>
+              <div class="step-content">
+                <div class="step-title">배포 확인</div>
+                <div class="step-desc">60~90초 후 Vercel 대시보드 + 웹 앱 접속 확인</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="col-title">터미널 명령어 요약</div>
+          <pre><span class="c"># 개발 서버</span>
+<span class="kw">npm</span> run dev
+
+<span class="c"># 기능 브랜치 개발</span>
+<span class="kw">git</span> checkout -b feature/기능명
+<span class="c"># ... 수정 ...</span>
+<span class="kw">git</span> push origin feature/기능명
+<span class="c"># → Vercel preview URL 자동 생성</span>
+
+<span class="c"># 운영 배포</span>
+<span class="kw">git</span> checkout master
+<span class="kw">git</span> merge feature/기능명
+<span class="kw">git</span> push origin master
+<span class="c"># → Vercel 자동 배포 트리거</span></pre>
+          <div class="info-box" style="margin-top:8px;">
+            <strong>커밋 메시지 규칙</strong><br>
+            feat(v2.4): 기능 추가 설명<br>
+            fix(v2.4): 버그 수정 설명
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 15 · 유지보수 절차 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 5 · 유지보수</div>
+      <div class="slide-title">월간 유지보수 절차</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">월간 정기 점검 항목</div>
+          <table class="info-table">
+            <tr><th>항목</th><th>방법</th><th>기준</th></tr>
+            <tr><td>앱 기능 동작</td><td class="muted">웹 앱 직접 테스트</td><td class="muted">오류 없음</td></tr>
+            <tr><td>보안 취약점</td><td class="muted"><code>npm audit</code></td><td class="muted">취약점 없음</td></tr>
+            <tr><td>Firebase 사용량</td><td class="muted">Console → 사용량</td><td class="muted">읽기 40K/일 이하</td></tr>
+            <tr><td>Vercel 상태</td><td class="muted">대시보드 Deployments</td><td class="muted">최신 배포 성공</td></tr>
+            <tr><td>데이터 백업</td><td class="muted">앱 내 JSON 내보내기</td><td class="muted">최신 파일 보관</td></tr>
+          </table>
+        </div>
+        <div class="col">
+          <div class="col-title">의존성 업데이트</div>
+          <pre><span class="c"># 현재 상태 확인</span>
+<span class="kw">npm</span> outdated
+
+<span class="c"># 안전 업데이트 (minor/patch)</span>
+<span class="kw">npm</span> update
+
+<span class="c"># 보안 취약점 수정</span>
+<span class="kw">npm</span> audit fix</pre>
+          <div class="warn-box" style="margin-top:8px;">
+            ⚠️ <strong>Vite 버전 주의</strong><br>
+            Vite 7 → 8 업그레이드 금지.<br>
+            Vite 8의 Rolldown 번들러가 Firebase subpath 처리 불가.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 16 · 백업 절차 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Section 6 · 백업 & 복원</div>
+      <div class="slide-title">프로젝트 백업 절차</div>
+      <div class="divider"></div>
+      <div class="two-col">
+        <div class="col">
+          <div class="col-title">① 코드 백업 (GitHub)</div>
+          <pre><span class="c"># 최신 코드 로컬 동기화</span>
+<span class="kw">git</span> pull origin master
+
+<span class="c"># 이전 버전 복귀 (안전)</span>
+<span class="kw">git</span> revert <span class="hl">{커밋해시}</span>
+<span class="kw">git</span> push origin master
+<span class="c"># → Vercel 자동 재배포</span></pre>
+          <div class="col-title" style="margin-top:12px;">② Vercel 즉시 롤백</div>
+          <ul class="body-list" style="gap:8px;">
+            <li><span class="dot"></span><div>Vercel 대시보드 → Deployments</div></li>
+            <li><span class="dot"></span><div>이전 배포 선택 → ··· 메뉴</div></li>
+            <li><span class="dot"></span><div>Promote to Production → <strong>10초 내 반영</strong></div></li>
+          </ul>
+        </div>
+        <div class="col">
+          <div class="col-title">③ Firebase 데이터 백업</div>
+          <ul class="body-list" style="gap:10px;">
+            <li><span class="dot"></span><div><div><strong>앱 내 내보내기 (권장)</strong></div><div class="sub">사이드바 → 📤 전체 내보내기(JSON)</div></div></li>
+            <li><span class="dot"></span><div><div><strong>복원</strong></div><div class="sub">사이드바 → 📥 전체 가져오기(JSON)<br>→ 파일 선택 → 확인</div></div></li>
+          </ul>
+          <div class="col-title" style="margin-top:12px;">④ 서비스 장애 시 대응</div>
+          <table class="info-table">
+            <tr><th>장애</th><th>영향</th><th>대응</th></tr>
+            <tr><td style="color:var(--t2);font-size:12px;">GitHub</td><td class="muted">push 불가</td><td class="muted">복구 후 push</td></tr>
+            <tr><td style="color:var(--t2);font-size:12px;">Vercel</td><td class="muted">접속 불가</td><td class="muted">롤백</td></tr>
+            <tr><td style="color:var(--t2);font-size:12px;">Firebase</td><td class="muted">동기화 불가</td><td class="muted">로컬 동작 유지</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 17 · 체크리스트 & 마무리 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="slide-body">
+      <div class="slide-tag">Summary · 운영 체크리스트</div>
+      <div class="slide-title">단계별 체크리스트</div>
+      <div class="divider"></div>
+      <div class="checklist">
+        <div class="check-group">
+          <div class="check-label">🔧 신규 설정 시</div>
+          <div class="check-item"><div class="check-box"></div>GitHub 저장소 생성 및 push</div>
+          <div class="check-item"><div class="check-box"></div>Vercel 프로젝트 생성 & GitHub 연동</div>
+          <div class="check-item"><div class="check-box"></div>Vercel 환경변수 6개 등록</div>
+          <div class="check-item"><div class="check-box"></div>Firebase 프로젝트 생성</div>
+          <div class="check-item"><div class="check-box"></div>Firestore 생성 & 보안 규칙 설정</div>
+          <div class="check-item"><div class="check-box"></div>.env.local 생성 & gitignore 확인</div>
+          <div class="check-item"><div class="check-box"></div>첫 배포 성공 & 동기화 테스트</div>
+        </div>
+        <div class="check-group">
+          <div class="check-label">🚀 코드 배포 시</div>
+          <div class="check-item"><div class="check-box"></div>로컬 npm run dev 테스트 완료</div>
+          <div class="check-item"><div class="check-box"></div>package.json 버전 업데이트</div>
+          <div class="check-item"><div class="check-box"></div>App.jsx 버전 문자열 업데이트</div>
+          <div class="check-item"><div class="check-box"></div>git commit 메시지 작성</div>
+          <div class="check-item"><div class="check-box"></div>git push origin master</div>
+          <div class="check-item"><div class="check-box"></div>Vercel 배포 성공 확인</div>
+          <div class="check-item"><div class="check-box"></div>웹 앱 버전 및 기능 확인</div>
+        </div>
+        <div class="check-group" style="grid-column:1/-1;">
+          <div class="check-label">📅 월간 유지보수</div>
+          <div style="display:flex; gap:40px; flex-wrap:wrap;">
+            <div class="check-item"><div class="check-box"></div>npm audit 보안 확인</div>
+            <div class="check-item"><div class="check-box"></div>Firebase 사용량 확인</div>
+            <div class="check-item"><div class="check-box"></div>JSON 데이터 백업</div>
+            <div class="check-item"><div class="check-box"></div>Vercel 배포 상태 확인</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SLIDE 18 · 마무리 -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header"></div>
+    <div class="cover-body" style="position:relative;">
+      <div class="cover-deco">
+        <div class="cover-deco-circle"></div>
+      </div>
+      <div class="cover-eyebrow">Thank You</div>
+      <div class="cover-title">3-Service<br><span class="accent">운영 구조</span><br>정리</div>
+      <div class="cover-subtitle" style="font-size:15px; line-height:1.8;">
+        🐙 <strong style="color:var(--t1)">GitHub</strong> — 코드 버전 관리 & 배포 트리거<br>
+        ▲ <strong style="color:var(--t1)">Vercel</strong> — 자동 빌드 & 글로벌 CDN 호스팅<br>
+        🔥 <strong style="color:var(--t1)">Firebase</strong> — 기기 간 데이터 실시간 동기화
+      </div>
+      <div class="cover-meta">
+        <span class="badge blue">📄 상세 내용: 웹개발_절차서_보고서.md</span>
+        <span class="badge green">현재 버전: V2.3_Web</span>
+        <span class="badge purple">작성: 2026.06.06</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /stage -->
+
+<!-- Navigation -->
+<div id="nav">
+  <button id="btn-prev" onclick="go(-1)">◀</button>
+  <span id="counter">1 / 18</span>
+  <button id="btn-next" onclick="go(1)">▶</button>
+</div>
+<div id="progress"></div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let cur = 0;
+
+  function show(n) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(total - 1, n));
+    slides[cur].classList.add('active');
+    document.getElementById('counter').textContent = `${cur + 1} / ${total}`;
+    document.getElementById('btn-prev').disabled = cur === 0;
+    document.getElementById('btn-next').disabled = cur === total - 1;
+    document.getElementById('progress').style.width = `${((cur + 1) / total) * 100}%`;
+  }
+
+  function go(d) { show(cur + d); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')  { e.preventDefault(); go(-1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End')  show(total - 1);
+  });
+
+  // Scale stage to viewport
+  function scaleStage() {
+    const stage = document.getElementById('stage');
+    const sw = window.innerWidth, sh = window.innerHeight - 60;
+    const scaleX = sw / 1280, scaleY = sh / 720;
+    const scale = Math.min(scaleX, scaleY);
+    const offX = (sw - 1280 * scale) / 2;
+    const offY = (sh - 720 * scale) / 2;
+    stage.style.transform = `translate(${offX}px, ${offY}px) scale(${scale})`;
+  }
+
+  window.addEventListener('resize', scaleStage);
+  scaleStage();
+  show(0);
+</script>
+
+</body>
+</html>

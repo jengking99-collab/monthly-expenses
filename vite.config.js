@@ -15,5 +15,10 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2020',
+    rolldownOptions: {
+      resolve: {
+        conditionNames: ['browser', 'import', 'module', 'default'],
+      },
+    },
   },
 })

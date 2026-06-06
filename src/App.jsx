@@ -288,6 +288,7 @@ export default function App() {
   const [modal,    setModal]    = useState(null);
   const [statTab,  setStatTab]  = useState("month");
   const [statYear, setStatYear] = useState(today.getFullYear());
+  const [compactDaily, setCompactDaily] = useState(false);
   const fileRef    = useRef();
   const jsonRef    = useRef();
   const contentRef = useRef(null);
@@ -800,16 +801,20 @@ export default function App() {
                 <div style={{ fontSize:13, fontWeight:600, color:G.t1, display:"flex", alignItems:"center", gap:6 }}>
                   날짜별 잔액 추적 <CntBadge n={dim+"일"} />
                 </div>
-                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                  {carryover.hasData && (
+                <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", justifyContent:"flex-end" }}>
+                  {carryover.hasData && !isMobile && (
                     <div style={{ display:"flex", gap:12, alignItems:"center", fontSize:11, background:"rgba(74,158,255,0.08)", border:"1px solid rgba(74,158,255,0.2)", borderRadius:8, padding:"5px 12px" }}>
                       <span style={{ color:G.tm }}>📥 이월</span>
                       <span style={{ color:G.blue, fontWeight:600 }}>KB {fmtW(carryover.kb)}</span>
                       <span style={{ color:G.blue, fontWeight:600 }}>신한 {fmtW(carryover.sh)}</span>
                     </div>
                   )}
-                  <Btn variant="green" onClick={exportDailyExcel}>⬇️ 엑셀 저장</Btn>
-                  <Btn variant="teal"  onClick={() => showToast(`${year}년 ${month}월 데이터 저장됨 ✓`)}>💾 저장</Btn>
+                  <div style={{ display:"flex", border:`1px solid ${G.bd}`, borderRadius:8, overflow:"hidden", flexShrink:0 }}>
+                    <button onClick={() => setCompactDaily(false)} style={{ padding:"4px 10px", fontSize:11, background: !compactDaily?G.blueDim:"none", color: !compactDaily?G.blue:G.t2, border:"none", borderRight:`1px solid ${G.bd}`, cursor:"pointer", fontFamily:"inherit" }}>전체</button>
+                    <button onClick={() => setCompactDaily(true)}  style={{ padding:"4px 10px", fontSize:11, background:  compactDaily?G.blueDim:"none", color:  compactDaily?G.blue:G.t2, border:"none", cursor:"pointer", fontFamily:"inherit" }}>요약</button>
+                  </div>
+                  {!isMobile && <Btn variant="green" onClick={exportDailyExcel}>⬇️ 엑셀 저장</Btn>}
+                  {!isMobile && <Btn variant="teal"  onClick={() => showToast(`${year}년 ${month}월 데이터 저장됨 ✓`)}>💾 저장</Btn>}
                 </div>
               </div>
             )}
@@ -835,7 +840,7 @@ export default function App() {
 
           </div>
           {/* ── 스크롤 영역 (테이블만) ── */}
-          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} contentRef={contentRef} />}
+          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} contentRef={contentRef} compact={compactDaily} />}
           {tab==="fixed"  && <FixedTab fixed={fixed} onUpdate={updateFixed} onDel={delFixed} onAdd={addFixed} />}
         </div>
       </main>
@@ -969,7 +974,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.1_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.2_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1057,7 +1062,7 @@ function SummaryCard({ label, badge, amount, color, sub, live, cardStyle, compac
 // ─────────────────────────────────────────────
 //  DAILY TAB
 // ─────────────────────────────────────────────
-function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual, contentRef }) {
+function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual, contentRef, compact }) {
   const isToday = (d) => year===today.getFullYear() && month===today.getMonth()+1 && d===today.getDate();
   const isPast  = (d) => new Date(year, month-1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const todayRef = useRef();
@@ -1073,18 +1078,25 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
 
   return (
       <div style={{ overflowX:"auto", marginBottom:16 }}>
-      <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip" }}>
-          <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth:1026 }}>
+      <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip", minWidth: compact ? 0 : 1026 }}>
+          <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth: compact ? 0 : 1026 }}>
             <colgroup>
-              <col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
-              <col style={{ width:82 }} /><col style={{ width:82 }} />
-              <col style={{ width:102 }} /><col style={{ width:102 }} /><col style={{ width:102 }} />
-              <col style={{ width:46 }} />
+              {compact ? (
+                <><col style={{ width:80 }} /><col /><col style={{ width:70 }} /><col style={{ width:40 }} /></>
+              ) : (
+                <><col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
+                <col style={{ width:82 }} /><col style={{ width:82 }} />
+                <col style={{ width:102 }} /><col style={{ width:102 }} /><col style={{ width:102 }} />
+                <col style={{ width:46 }} /></>
+              )}
             </colgroup>
             <thead>
               <tr>
-                {["날짜","수입 내역","이체 내역","지출 내역","일 수입","일 지출","국민 잔액","신한 잔액","합계","추가"].map((h, i) => (
-                  <th key={h} style={{ background:"rgba(255,255,255,0.03)", padding:"9px 12px", textAlign: i>=4&&i<=8?"right":"left", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" }}>{h}</th>
+                {(compact
+                  ? ["날짜","지출 내역","일 지출","추가"]
+                  : ["날짜","수입 내역","이체 내역","지출 내역","일 수입","일 지출","국민 잔액","신한 잔액","합계","추가"]
+                ).map((h, i) => (
+                  <th key={h} style={{ background:"rgba(255,255,255,0.03)", padding:"9px 12px", textAlign: compact?(i===2?"right":"left"):(i>=4&&i<=8?"right":"left"), fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1109,20 +1121,20 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
                       <span style={{ color: isTd?G.blue:undefined }}>{d}</span>
                       {d === 1 && carryover.hasData && <span style={{ fontSize:8, padding:"1px 4px", borderRadius:3, background:G.blueDim, color:G.blue, marginLeft:3 }}>이월</span>}
                     </td>
-                    <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                    {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                       <Tags items={dayMap[d].inc} typeOverride="inc" onDel={onDelManual} onEdit={onEditManual} />
-                    </td>
-                    <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                    </td>}
+                    {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                       <TransferTags items={dayMap[d].trs} onDel={onDelManual} onEdit={onEditManual} />
-                    </td>
+                    </td>}
                     <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                       <Tags items={dayMap[d].exp} typeOverride="exp" onDel={onDelManual} onEdit={onEditManual} />
                     </td>
-                    <NumCell val={dayInc} prefix="+" color={G.green} zero />
+                    {!compact && <NumCell val={dayInc} prefix="+" color={G.green} zero />}
                     <NumCell val={dayExp} prefix="-" color={G.red}   zero />
-                    <BalCell val={kbB} />
-                    <BalCell val={shB} />
-                    <BalCell val={totB} bold />
+                    {!compact && <BalCell val={kbB} />}
+                    {!compact && <BalCell val={shB} />}
+                    {!compact && <BalCell val={totB} bold />}
                     <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                       <button onClick={() => onAddDay(d)}
                         style={{ display:"inline-flex", alignItems:"center", gap:2, padding:"2px 7px", borderRadius:12, fontSize:10, cursor:"pointer", border:`1px dashed rgba(255,255,255,0.12)`, background:"none", color:G.tm, fontFamily:"inherit" }}>
@@ -1154,7 +1166,7 @@ function FixedTab({ fixed, onUpdate, onDel, onAdd }) {
 
   return (
       <div style={{ overflowX:"auto", marginBottom:16 }}>
-      <div style={{ ...css.fiWrap, marginBottom:0 }}>
+      <div style={{ ...css.fiWrap, marginBottom:0, minWidth:538 }}>
         <div style={{ display:"grid", gridTemplateColumns:"46px minmax(150px,1fr) 110px 110px 72px 50px", borderBottom:`1px solid ${G.bd}`, background:"rgba(255,255,255,0.03)" }}>
           {["일","항목명","자산","금액(원)","구분","삭제"].map(h => (
             <div key={h} style={{ padding:"8px 10px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px" }}>{h}</div>

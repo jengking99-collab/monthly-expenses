@@ -88,7 +88,7 @@ const css = {
   topbar:  { padding:"18px 24px 0", display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexShrink:0 },
   sumRow:  { padding:"14px 24px", display:"flex", gap:10, flexShrink:0 },
   scard:   { flex:1, background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, padding:"14px 16px", minWidth:0 },
-  content: { padding:"0 24px 24px", flex:1, overflowY:"auto", overflowX:"auto", minHeight:0 },
+  content: { padding:"0 24px 24px", flex:1, overflowY:"auto", minHeight:0 },
   tabBar:  { display:"flex", gap:4, marginBottom:14, flexShrink:0 },
   tblWrap: { background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip", marginBottom:16 },
   fiWrap:  { background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip", marginBottom:16 },
@@ -833,36 +833,6 @@ export default function App() {
               </div>
             )}
 
-            {/* ── 컬럼 헤더 (카드 상단 캡) ── */}
-            {tab==="daily" && (
-              <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderBottom:"none", borderRadius:"14px 14px 0 0" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, tableLayout:"fixed" }}>
-                  <colgroup>
-                    <col style={{ width:90 }} /><col /><col style={{ width:120 }} /><col />
-                    <col style={{ width:82 }} /><col style={{ width:82 }} />
-                    <col style={{ width:102 }} /><col style={{ width:102 }} /><col style={{ width:102 }} />
-                    <col style={{ width:46 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      {["날짜","수입 내역","이체 내역","지출 내역","일 수입","일 지출","국민 잔액","신한 잔액","합계","추가"].map((h, i) => (
-                        <th key={h} style={{ background:"rgba(255,255,255,0.03)", padding:"9px 12px", textAlign: i>=4&&i<=8?"right":"left", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                </table>
-              </div>
-            )}
-            {tab==="fixed" && (
-              <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderBottom:"none", borderRadius:"14px 14px 0 0" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"46px 1fr 110px 110px 72px 50px", borderBottom:`1px solid ${G.bd}` }}>
-                  {["일","항목명","자산","금액(원)","구분","삭제"].map(h => (
-                    <div key={h} style={{ padding:"8px 10px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px" }}>{h}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-
           </div>
           {/* ── 스크롤 영역 (테이블만) ── */}
           {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} contentRef={contentRef} />}
@@ -1092,30 +1062,32 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
   const isPast  = (d) => new Date(year, month-1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const todayRef = useRef();
   useEffect(() => {
-    if (!todayRef.current) return;
+    if (!todayRef.current || !contentRef?.current) return;
     const row = todayRef.current;
-    const container = contentRef?.current;
-    if (container) {
-      // 가로 스크롤 강제 0 유지, 세로만 오늘 행 중앙으로
-      const rowRect = row.getBoundingClientRect();
-      const contRect = container.getBoundingClientRect();
-      const newTop = container.scrollTop + rowRect.top - contRect.top - container.clientHeight / 2 + rowRect.height / 2;
-      container.scrollTop = Math.max(0, newTop);
-      container.scrollLeft = 0;
-    } else {
-      row.scrollIntoView({ block: "center", inline: "start" });
-    }
+    const container = contentRef.current;
+    const rowRect = row.getBoundingClientRect();
+    const contRect = container.getBoundingClientRect();
+    const newTop = container.scrollTop + rowRect.top - contRect.top - container.clientHeight / 2 + rowRect.height / 2;
+    container.scrollTop = Math.max(0, newTop);
   }, [month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-      <div style={{ ...css.tblWrap, borderRadius:"0 0 14px 14px", borderTop:"none" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, tableLayout:"fixed" }}>
+      <div style={{ overflowX:"auto", marginBottom:16 }}>
+      <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"hidden" }}>
+          <table style={{ borderCollapse:"collapse", fontSize:12, tableLayout:"fixed", width:"max-content" }}>
             <colgroup>
-              <col style={{ width:90 }} /><col /><col style={{ width:120 }} /><col />
+              <col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
               <col style={{ width:82 }} /><col style={{ width:82 }} />
               <col style={{ width:102 }} /><col style={{ width:102 }} /><col style={{ width:102 }} />
               <col style={{ width:46 }} />
             </colgroup>
+            <thead>
+              <tr>
+                {["날짜","수입 내역","이체 내역","지출 내역","일 수입","일 지출","국민 잔액","신한 잔액","합계","추가"].map((h, i) => (
+                  <th key={h} style={{ background:"rgba(255,255,255,0.03)", padding:"9px 12px", textAlign: i>=4&&i<=8?"right":"left", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {Array.from({ length: dim }, (_, i) => i + 1).map(d => {
                 const dt  = new Date(year, month - 1, d);
@@ -1163,6 +1135,7 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
             </tbody>
           </table>
       </div>
+      </div>
   );
 }
 
@@ -1180,7 +1153,13 @@ function FixedTab({ fixed, onUpdate, onDel, onAdd }) {
   const selSt  = { ...inSt, cursor:"pointer", appearance:"none" };
 
   return (
-      <div style={{ ...css.fiWrap, borderRadius:"0 0 14px 14px", borderTop:"none" }}>
+      <div style={{ overflowX:"auto", marginBottom:16 }}>
+      <div style={{ ...css.fiWrap, marginBottom:0 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"46px 1fr 110px 110px 72px 50px", borderBottom:`1px solid ${G.bd}`, background:"rgba(255,255,255,0.03)" }}>
+          {["일","항목명","자산","금액(원)","구분","삭제"].map(h => (
+            <div key={h} style={{ padding:"8px 10px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px" }}>{h}</div>
+          ))}
+        </div>
         {sorted.map(fi => {
           const isInc  = fi.type === "income";
           const rowCol = isInc ? G.red : G.t1;
@@ -1211,6 +1190,7 @@ function FixedTab({ fixed, onUpdate, onDel, onAdd }) {
         <button onClick={onAdd} style={{ display:"flex", alignItems:"center", gap:5, padding:"9px 12px", background:"none", border:"none", color:G.tm, fontSize:12, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
           ＋ 새 고정 항목 추가
         </button>
+      </div>
       </div>
   );
 }

@@ -288,8 +288,9 @@ export default function App() {
   const [modal,    setModal]    = useState(null);
   const [statTab,  setStatTab]  = useState("month");
   const [statYear, setStatYear] = useState(today.getFullYear());
-  const fileRef = useRef();
-  const jsonRef = useRef();
+  const fileRef    = useRef();
+  const jsonRef    = useRef();
+  const contentRef = useRef(null);
   const isMobile = useMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -778,7 +779,7 @@ export default function App() {
         </div>
 
         {/* Content */}
-        <div style={css.content}>
+        <div ref={contentRef} style={css.content}>
 
           {/* ── 고정 헤더 영역 (TabBar + 탭별 제목/버튼 + 컬럼 헤더) ── */}
           <div style={{ position:"sticky", top:0, zIndex:10, background:G.bg }}>
@@ -864,7 +865,7 @@ export default function App() {
 
           </div>
           {/* ── 스크롤 영역 (테이블만) ── */}
-          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} />}
+          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} contentRef={contentRef} />}
           {tab==="fixed"  && <FixedTab fixed={fixed} onUpdate={updateFixed} onDel={delFixed} onAdd={addFixed} />}
         </div>
       </main>
@@ -1086,11 +1087,25 @@ function SummaryCard({ label, badge, amount, color, sub, live, cardStyle, compac
 // ─────────────────────────────────────────────
 //  DAILY TAB
 // ─────────────────────────────────────────────
-function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual }) {
+function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual, contentRef }) {
   const isToday = (d) => year===today.getFullYear() && month===today.getMonth()+1 && d===today.getDate();
   const isPast  = (d) => new Date(year, month-1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const todayRef = useRef();
-  useEffect(() => { if (todayRef.current) todayRef.current.scrollIntoView({ block:"center", behavior:"smooth", inline:"nearest" }); }, [month]);
+  useEffect(() => {
+    if (!todayRef.current) return;
+    const row = todayRef.current;
+    const container = contentRef?.current;
+    if (container) {
+      // 가로 스크롤 강제 0 유지, 세로만 오늘 행 중앙으로
+      const rowRect = row.getBoundingClientRect();
+      const contRect = container.getBoundingClientRect();
+      const newTop = container.scrollTop + rowRect.top - contRect.top - container.clientHeight / 2 + rowRect.height / 2;
+      container.scrollTop = Math.max(0, newTop);
+      container.scrollLeft = 0;
+    } else {
+      row.scrollIntoView({ block: "center", inline: "start" });
+    }
+  }, [month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
       <div style={{ ...css.tblWrap, borderRadius:"0 0 14px 14px", borderTop:"none" }}>

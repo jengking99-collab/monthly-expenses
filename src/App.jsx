@@ -715,7 +715,7 @@ export default function App() {
   const bankRefDay = bank.date ? (() => { const bd = new Date(bank.date); return bd.getFullYear()===year&&bd.getMonth()+1===month?bd.getDate():0; })() : 0;
 
   const closeSidebar = () => setSidebarOpen(false);
-  const scardMobile = isMobile ? { flex: "1 1 calc(50% - 5px)", minWidth: 0 } : {};
+  const scardMobile = isMobile ? { flex: "1 1 calc(50% - 5px)", minWidth: 0, padding: "8px 10px" } : {};
 
   return (
     <div style={css.app}>
@@ -751,7 +751,7 @@ export default function App() {
               </button>
             )}
             <div style={{ minWidth:0 }}>
-              <div style={{ fontSize: isMobile ? 16 : 20, fontWeight:700, letterSpacing:"-0.5px" }}>{year}년 {month}월 지출관리</div>
+              <div style={{ fontSize: isMobile ? 14 : 20, fontWeight:700, letterSpacing:"-0.5px", whiteSpace: isMobile ? "nowrap" : undefined }}>{year}년 {month}월 지출관리</div>
               {!isMobile && (
                 <div style={{ fontSize:12, color:G.tm, marginTop:2 }}>
                   오늘: {today.getFullYear()}.{pad(today.getMonth()+1)}.{pad(today.getDate())} ({WD[today.getDay()]})
@@ -760,17 +760,21 @@ export default function App() {
             </div>
           </div>
           <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-            <Btn onClick={() => setModal("bank")}>🏦 잔액 설정</Btn>
-            <Btn variant="primary" onClick={() => setModal("add")}>＋ 항목 추가</Btn>
+            <Btn onClick={() => setModal("bank")} style={isMobile ? { fontSize:11, padding:"5px 9px" } : {}}>
+              🏦 {isMobile ? "잔액" : "잔액 설정"}
+            </Btn>
+            <Btn variant="primary" onClick={() => setModal("add")} style={isMobile ? { fontSize:11, padding:"5px 9px" } : {}}>
+              ＋ {isMobile ? "추가" : "항목 추가"}
+            </Btn>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div style={{ ...css.sumRow, flexWrap:"wrap" }}>
-          <SummaryCard label="국민은행 잔액" badge={<BankBadge type="kb"/>} amount={fmtW(liveKb)} color={G.blue}  sub={bankSub} live={isCurMonth} cardStyle={scardMobile} />
-          <SummaryCard label="신한은행 잔액" badge={<BankBadge type="sh"/>} amount={fmtW(liveSh)} color={G.blue}  sub={bankSub} live={isCurMonth} cardStyle={scardMobile} />
-          <SummaryCard label="이번 달 총 지출" amount={fmtW(totExp)} color={G.red}   sub="고정+수동 합산" cardStyle={scardMobile} />
-          <SummaryCard label="이번 달 총 수입" amount={fmtW(totInc)} color={G.green} sub="고정+수동 합산" cardStyle={scardMobile} />
+        <div style={{ ...css.sumRow, flexWrap:"wrap", padding: isMobile ? "8px 12px" : "14px 24px" }}>
+          <SummaryCard label="국민은행 잔액" badge={<BankBadge type="kb"/>} amount={fmtW(liveKb)} color={G.blue}  sub={bankSub} live={isCurMonth} cardStyle={scardMobile} compact={isMobile} />
+          <SummaryCard label="신한은행 잔액" badge={<BankBadge type="sh"/>} amount={fmtW(liveSh)} color={G.blue}  sub={bankSub} live={isCurMonth} cardStyle={scardMobile} compact={isMobile} />
+          <SummaryCard label="이번 달 총 지출" amount={fmtW(totExp)} color={G.red}   sub="고정+수동 합산" cardStyle={scardMobile} compact={isMobile} />
+          <SummaryCard label="이번 달 총 수입" amount={fmtW(totInc)} color={G.green} sub="고정+수동 합산" cardStyle={scardMobile} compact={isMobile} />
         </div>
 
         {/* Content */}
@@ -994,7 +998,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.0_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.1_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1066,15 +1070,15 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
 // ─────────────────────────────────────────────
 //  SUMMARY CARD
 // ─────────────────────────────────────────────
-function SummaryCard({ label, badge, amount, color, sub, live, cardStyle }) {
+function SummaryCard({ label, badge, amount, color, sub, live, cardStyle, compact }) {
   return (
     <div style={{ ...css.scard, ...cardStyle }}>
-      <div style={{ fontSize:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.8px", color:G.tm, marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
+      <div style={{ fontSize:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.8px", color:G.tm, marginBottom: compact ? 3 : 8, display:"flex", alignItems:"center", gap:5 }}>
         {badge} {label}
         {live && <span style={{ fontSize:9, padding:"1px 5px", borderRadius:3, background:G.greenDim, color:G.green, marginLeft:2 }}>실시간</span>}
       </div>
-      <div style={{ fontSize:20, fontWeight:700, letterSpacing:"-0.8px", marginBottom:4, color }}>{amount}</div>
-      <div style={{ fontSize:11, color:G.tm }}>{sub}</div>
+      <div style={{ fontSize: compact ? 14 : 20, fontWeight:700, letterSpacing:"-0.5px", marginBottom: compact ? 2 : 4, color }}>{amount}</div>
+      <div style={{ fontSize: compact ? 9 : 11, color:G.tm }}>{sub}</div>
     </div>
   );
 }
@@ -1086,7 +1090,7 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
   const isToday = (d) => year===today.getFullYear() && month===today.getMonth()+1 && d===today.getDate();
   const isPast  = (d) => new Date(year, month-1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const todayRef = useRef();
-  useEffect(() => { if (todayRef.current) todayRef.current.scrollIntoView({ block:"center", behavior:"smooth" }); }, [month]);
+  useEffect(() => { if (todayRef.current) todayRef.current.scrollIntoView({ block:"center", behavior:"smooth", inline:"nearest" }); }, [month]);
 
   return (
       <div style={{ ...css.tblWrap, borderRadius:"0 0 14px 14px", borderTop:"none" }}>

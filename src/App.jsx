@@ -4,6 +4,8 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import * as XLSX from "xlsx";
+import { db, isFirebaseReady } from './firebase';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 // ─────────────────────────────────────────────
 //  CONSTANTS
@@ -15,9 +17,10 @@ const COLORS = ["#4a9eff","#f87171","#34d399","#fbbf24","#a78bfa","#fb923c","#38
 const YEARS  = Array.from({ length: 2040 - 2020 + 1 }, (_, i) => 2020 + i);
 
 // localStorage keys
-const LS_BASE = "mexp_v1_fixed_base";   // 고정항목 기본 저장 (수동)
-const LS_DATA = "mexp_v1_data";          // 월별 지출 데이터 (자동)
-const LS_META = "mexp_v1_meta";          // UI 상태 (년/월 선택)
+const LS_BASE     = "mexp_v1_fixed_base";   // 고정항목 기본 저장 (수동)
+const LS_DATA     = "mexp_v1_data";          // 월별 지출 데이터 (자동)
+const LS_META     = "mexp_v1_meta";          // UI 상태 (년/월 선택)
+const LS_SYNC_KEY = "mexp_sync_key";         // Firebase 동기화 키
 
 // ─────────────────────────────────────────────
 //  UTILS
@@ -289,6 +292,12 @@ export default function App() {
   const jsonRef = useRef();
   const isMobile = useMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ── Firebase sync state ──
+  const syncTimerRef = useRef(null);
+  const [syncKey,    setSyncKey]    = useState(() => localStorage.getItem(LS_SYNC_KEY) || "");
+  const [syncStatus, setSyncStatus] = useState("idle");
+  const [lastSyncAt, setLastSyncAt] = useState(null);
 
   // ── Auto-persist ──
   useEffect(() => { localStorage.setItem(LS_META, JSON.stringify({ year, month })); }, [year, month]);
@@ -569,6 +578,85 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // ── Firebase sync ──
+  const pushSync = useCallback(async () => {
+    if (!syncKey || !isFirebaseReady || !db) return;
+    setSyncStatus("syncing");
+    try {
+      await setDoc(doc(db, "sync", syncKey), {
+        fixed_base: JSON.stringify(loadLS(LS_BASE, null)),
+        data:       JSON.stringify(loadLS(LS_DATA, {})),
+        updatedAt:  serverTimestamp(),
+      });
+      setSyncStatus("synced");
+      setLastSyncAt(new Date());
+    } catch(e) {
+      setSyncStatus("error");
+    }
+  }, [syncKey]);
+
+  const pullSync = useCallback(async () => {
+    if (!syncKey || !isFirebaseReady || !db) return false;
+    setSyncStatus("syncing");
+    try {
+      const snap = await getDoc(doc(db, "sync", syncKey));
+      if (!snap.exists()) {
+        setSyncStatus("idle");
+        showToast("클라우드에 저장된 데이터가 없습니다. 이 기기가 첫 번째입니다.");
+        return false;
+      }
+      const remote = snap.data();
+      if (remote.data) {
+        const parsed = JSON.parse(remote.data);
+        localStorage.setItem(LS_DATA, JSON.stringify(parsed));
+        setData(parsed);
+      }
+      if (remote.fixed_base && remote.fixed_base !== "null") {
+        const parsed = JSON.parse(remote.fixed_base);
+        localStorage.setItem(LS_BASE, JSON.stringify(parsed));
+        const versions = parseFixedVersions(parsed);
+        setFixedVersions(versions);
+        const latest = versions.length > 0
+          ? [...versions].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
+          : null;
+        setFixed(latest ? latest.items.map(fi => ({ ...fi })) : []);
+      }
+      setSyncStatus("synced");
+      setLastSyncAt(new Date());
+      showToast("클라우드에서 데이터를 가져왔습니다 ✓");
+      return true;
+    } catch(e) {
+      setSyncStatus("error");
+      showToast("동기화 실패: " + e.message, "error");
+      return false;
+    }
+  }, [syncKey]);
+
+  const connectSync = (key) => {
+    const k = key.trim();
+    if (!k) return;
+    localStorage.setItem(LS_SYNC_KEY, k);
+    setSyncKey(k);
+    setSyncStatus("idle");
+    showToast("동기화 키가 설정되었습니다. 데이터가 자동으로 업로드됩니다.");
+  };
+
+  const disconnectSync = () => {
+    localStorage.removeItem(LS_SYNC_KEY);
+    setSyncKey("");
+    setSyncStatus("idle");
+    setLastSyncAt(null);
+    showToast("동기화 연결이 해제되었습니다.");
+  };
+
+  // ── Auto-push on data change (debounce 5s) ──
+  useEffect(() => {
+    if (!syncKey || !isFirebaseReady) return;
+    clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(pushSync, 5000);
+    return () => clearTimeout(syncTimerRef.current);
+  }, [data, fixedVersions, syncKey, pushSync]);
+
   // ── Excel export: 고정항목 ──
   const exportFixedExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -642,6 +730,8 @@ export default function App() {
         onStats={() => { setModal("stats"); setStatTab("month"); closeSidebar(); }}
         onExportAll={exportAllData}
         onImportAll={() => jsonRef.current.click()}
+        syncKey={syncKey} syncStatus={syncStatus}
+        onSync={() => { setModal("sync"); closeSidebar(); }}
       />
 
       <main style={css.main}>
@@ -789,6 +879,15 @@ export default function App() {
       {modal==="stats" && (
         <StatsOverlay year={year} month={month} statYear={statYear} setStatYear={setStatYear} data={data} fixedVersions={fixedVersions} statTab={statTab} onTabChange={setStatTab} onClose={() => setModal(null)} getMonthTotals={getMonthTotals} />
       )}
+      {modal==="sync" && (
+        <SyncModal
+          syncKey={syncKey} syncStatus={syncStatus} lastSyncAt={lastSyncAt}
+          onConnect={connectSync}
+          onDisconnect={disconnectSync}
+          onPull={pullSync}
+          onClose={() => setModal(null)}
+        />
+      )}
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}
       <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display:"none" }} onChange={handleImport} />
@@ -798,9 +897,86 @@ export default function App() {
 }
 
 // ─────────────────────────────────────────────
+//  SYNC MODAL
+// ─────────────────────────────────────────────
+function SyncModal({ syncKey, syncStatus, lastSyncAt, onConnect, onDisconnect, onPull, onClose }) {
+  const [inputKey, setInputKey] = useState(syncKey);
+  const [showKey,  setShowKey]  = useState(false);
+
+  const statusInfo = {
+    idle:    { icon:"⚪", text:"연결 안 됨",   col: G.tm    },
+    syncing: { icon:"🔄", text:"동기화 중...", col: G.blue  },
+    synced:  { icon:"🟢", text:"동기화 완료", col: G.green },
+    error:   { icon:"🔴", text:"동기화 실패", col: G.red   },
+  }[syncStatus] || { icon:"⚪", text:"연결 안 됨", col: G.tm };
+
+  const inSt  = { width:"100%", padding:"8px 11px", background:G.bg2, border:`1px solid ${G.bd}`, borderRadius:10, color:G.t1, fontSize:12, fontFamily:"inherit", outline:"none", boxSizing:"border-box" };
+  const lblSt = { fontSize:11, fontWeight:500, color:G.t2, marginBottom:5, display:"block" };
+
+  return (
+    <div style={css.overlay} onClick={onClose}>
+      <div style={css.modal} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:18, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          🔄 기기 간 동기화 <XBtn onClick={onClose} />
+        </div>
+
+        {!isFirebaseReady && (
+          <div style={{ padding:"10px 12px", borderRadius:10, background:G.amberDim, border:`1px solid rgba(251,191,36,0.3)`, fontSize:12, color:G.amber, marginBottom:14 }}>
+            ⚠️ Firebase 미설정 — <code>.env.local</code> 파일에 Firebase 설정을 입력한 후 재시작하세요.
+          </div>
+        )}
+
+        <div style={{ marginBottom:14 }}>
+          <label style={lblSt}>동기화 키 (기기 간 공유할 비밀 키)</label>
+          <div style={{ display:"flex", gap:6 }}>
+            <input
+              type={showKey ? "text" : "password"}
+              style={inSt}
+              placeholder="영문/숫자로 된 나만의 비밀 키 입력"
+              value={inputKey}
+              onChange={e => setInputKey(e.target.value)}
+            />
+            <button onClick={() => setShowKey(p => !p)}
+              style={{ flexShrink:0, padding:"8px 10px", borderRadius:10, border:`1px solid ${G.bd}`, background:"none", color:G.t2, cursor:"pointer", fontSize:11, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              {showKey ? "숨김" : "표시"}
+            </button>
+          </div>
+          <div style={{ fontSize:10, color:G.tm, marginTop:5 }}>
+            같은 키를 입력한 기기끼리 데이터를 공유합니다. 타인에게 공유하지 마세요.
+          </div>
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18, padding:"10px 12px", borderRadius:10, background:G.bg2 }}>
+          <span style={{ fontSize:16 }}>{statusInfo.icon}</span>
+          <div>
+            <div style={{ fontSize:12, fontWeight:600, color:statusInfo.col }}>{statusInfo.text}</div>
+            {lastSyncAt && <div style={{ fontSize:10, color:G.tm }}>마지막: {lastSyncAt.toLocaleTimeString("ko-KR")}</div>}
+            {syncKey && <div style={{ fontSize:10, color:G.tm, marginTop:2 }}>키: {syncKey.slice(0,3)}{"*".repeat(Math.max(0, syncKey.length-3))}</div>}
+          </div>
+        </div>
+
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          <Btn style={{ flex:1, justifyContent:"center" }} onClick={onClose}>닫기</Btn>
+          {syncKey && (
+            <>
+              <Btn variant="teal" style={{ justifyContent:"center" }} onClick={onPull}>⬇ 클라우드→이 기기</Btn>
+              <Btn variant="red"  style={{ justifyContent:"center" }} onClick={onDisconnect}>연결 해제</Btn>
+            </>
+          )}
+          <Btn variant="primary" style={{ flex:1, justifyContent:"center" }} disabled={!isFirebaseReady || !inputKey.trim()}
+            onClick={() => onConnect(inputKey)}>
+            {syncKey ? "키 변경" : "연결"}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 //  SIDEBAR
 // ─────────────────────────────────────────────
-function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, onExportAll, onImportAll, isMobile, sidebarOpen, onClose }) {
+function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, onExportAll, onImportAll, isMobile, sidebarOpen, onClose, syncKey, syncStatus, onSync }) {
   const isCurrentYear = today.getFullYear() === year;
   const sidebarStyle = isMobile
     ? { ...css.sidebar, position:"fixed", top:0, left:0, height:"100vh", zIndex:200,
@@ -863,6 +1039,19 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
             {icon} {label}
           </button>
         ))}
+        <button onClick={onSync}
+          style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", borderRadius:10, cursor:"pointer", fontSize:12, border:"none", fontFamily:"inherit", width:"100%", textAlign:"left",
+            background: syncKey ? G.tealDim : "none",
+            color: syncKey ? G.teal : G.t2 }}>
+          🔄 기기 동기화
+          {syncKey && (
+            <span style={{ marginLeft:"auto", fontSize:9, padding:"1px 5px", borderRadius:3,
+              background: syncStatus==="synced" ? G.greenDim : syncStatus==="syncing" ? G.blueDim : syncStatus==="error" ? G.redDim : "rgba(255,255,255,0.06)",
+              color: syncStatus==="synced" ? G.green : syncStatus==="syncing" ? G.blue : syncStatus==="error" ? G.red : G.tm }}>
+              {syncStatus==="synced" ? "동기화됨" : syncStatus==="syncing" ? "..." : syncStatus==="error" ? "오류" : "연결됨"}
+            </span>
+          )}
+        </button>
       </div>
     </aside>
   );

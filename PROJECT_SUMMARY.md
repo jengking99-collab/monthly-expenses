@@ -1,6 +1,6 @@
 # 월 지출관리 프로젝트 세션 요약
 
-> 마지막 업데이트: 2026-06-06 (V2.3_Web)
+> 마지막 업데이트: 2026-06-06 (V2.4_Web)
 
 ---
 
@@ -11,7 +11,7 @@
 | **경로** | `D:\Claude_Code\monthly_expenses` |
 | **목적** | 매월 고정/변동 수입·지출 관리, 통장별 잔액 실시간 추적 |
 | **스택** | React 19 + Vite 7 + Recharts + xlsx + Electron 32 |
-| **현재 버전** | **V2.3_Web** (`package.json` version: `2.3.0`) |
+| **현재 버전** | **V2.4_Web** (`package.json` version: `2.4.0`) |
 | **웹 배포** | https://monthly-expenses-navy.vercel.app/ |
 | **GitHub** | jengking99-collab/monthly-expenses |
 | **Electron 배포** | `releases/v15/월지출관리_v1.5.exe` (포터블, 마지막 빌드) |
@@ -114,6 +114,31 @@ monthly_expenses/
 | `mexp_v1_fixed_base` | 수동 (💾 기본 저장) | 고정항목 버전 이력 `[{ effectiveFrom, items }]` |
 | `mexp_v1_data` | 자동 (변경 즉시) | 월별 지출 전체 데이터 |
 | `mexp_v1_meta` | 자동 | 마지막 선택 연도/월 |
+
+---
+
+## 버그 수정 이력 (V2.4_Web)
+
+### Bug 1: 이전달 이체 행이 이월 계산에 미반영 (치명적)
+
+`carryover` useMemo의 `pRows.forEach` 루프에서 이체 행(`isTransfer:true`) 처리 누락.
+이체 행은 `asset`이 undefined → `isKb(undefined)=false` → net 기여 0 → **이전달 이체가 있으면 이월 잔액 오류**.
+
+**수정**: 이체 행 분기 추가:
+```javascript
+if (r.isTransfer) {
+  if (isKb(r.fromAsset)) netKb[r.day] -= (r.amount || 0);
+  else if (isSh(r.fromAsset)) netSh[r.day] -= (r.amount || 0);
+  if (isKb(r.toAsset)) netKb[r.day] += (r.amount || 0);
+  else if (isSh(r.toAsset)) netSh[r.day] += (r.amount || 0);
+}
+```
+
+### Bug 2: 기준일 설정 시 이월 항목이 1일 수입에 중복 표시 (표시 오류)
+
+`buildDayMap`에서 `carryover.hasData`이면 항상 이월 항목을 1일 수입으로 추가했으나, `refDay > 0`(기준일 설정)이면 `buildBalances`의 앵커 방식 계산에서 이월 항목은 잔액에 반영되지 않음 → **UI 표시와 실제 잔액 불일치**.
+
+**수정**: `refDay === 0`일 때만 이월 항목 표시.
 | `mexp_sync_key` | 연결 시 1회 저장 | Firebase 동기화 키 (앱 재시작 후에도 유지) |
 
 ---
@@ -250,6 +275,7 @@ process.env.VITE_ELECTRON = '1';  // 최상단에서 설정
 | **V2.1_Web** | **모바일 UI 개선: 컴팩트 요약카드, 상단 액션 버튼, 슬라이드 드로어 사이드바** |
 | **V2.2_Web** | **가로 스크롤(minWidth 기법), 전체/요약 토글, FixedTab 항목명 표시 수정** |
 | **V2.3_Web** | **헤더·날짜열 고정(sticky), 단일 scroll 컨테이너, FixedTab CSS grid → table 전환** |
+| **V2.4_Web** | **이월 계산 버그 수정: 이전달 이체 행 미반영, 기준일 설정 시 이월 항목 표시 오류** |
 
 ---
 

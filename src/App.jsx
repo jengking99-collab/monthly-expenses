@@ -367,8 +367,15 @@ export default function App() {
     });
     pRows.forEach(r => {
       if (r.isSub || r.day < 1 || r.day > pDim) return;
-      if (isKb(r.asset)) netKb[r.day] += (r.income || 0) - (r.expense || 0);
-      else if (isSh(r.asset)) netSh[r.day] += (r.income || 0) - (r.expense || 0);
+      if (r.isTransfer) {
+        if (isKb(r.fromAsset)) netKb[r.day] -= (r.amount || 0);
+        else if (isSh(r.fromAsset)) netSh[r.day] -= (r.amount || 0);
+        if (isKb(r.toAsset)) netKb[r.day] += (r.amount || 0);
+        else if (isSh(r.toAsset)) netSh[r.day] += (r.amount || 0);
+      } else {
+        if (isKb(r.asset)) netKb[r.day] += (r.income || 0) - (r.expense || 0);
+        else if (isSh(r.asset)) netSh[r.day] += (r.income || 0) - (r.expense || 0);
+      }
     });
 
     let kb = refKb, sh = refSh;
@@ -397,8 +404,16 @@ export default function App() {
     const map = {};
     for (let d = 1; d <= dim; d++) map[d] = { inc: [], exp: [], trs: [] };
 
-    // 이월: 이전달 최종 잔액을 day 1 수입으로 표시
-    if (carryover.hasData) {
+    // refDay: 잔액 기준일 (buildBalances와 동일 로직)
+    let refDay = 0;
+    if (bank.date) {
+      const bd = new Date(bank.date);
+      if (bd.getFullYear() === year && bd.getMonth() + 1 === month) refDay = bd.getDate();
+    }
+
+    // 이월: refDay=0(기준일 미설정)일 때만 day 1 수입으로 표시
+    // refDay>0이면 bank.kb가 앵커이므로 이월 표시 불필요 (잔액 계산에도 미반영)
+    if (carryover.hasData && refDay === 0) {
       if (carryover.kb > 0) map[1].inc.push({ name: "이월(KB)", asset: "KB국민은행", amount: carryover.kb, isFixed: true, isCarryover: true, id: "co_kb" });
       if (carryover.sh > 0) map[1].inc.push({ name: "이월(신한)", asset: "신한은행", amount: carryover.sh, isFixed: true, isCarryover: true, id: "co_sh" });
     }
@@ -974,7 +989,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.3_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.4_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}

@@ -1073,8 +1073,8 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
 
   return (
       <div style={{ overflowX:"auto", marginBottom:16 }}>
-      <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"hidden" }}>
-          <table style={{ borderCollapse:"collapse", fontSize:12, tableLayout:"fixed", width:"max-content" }}>
+      <div style={{ background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, overflow:"clip" }}>
+          <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth:1026 }}>
             <colgroup>
               <col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
               <col style={{ width:82 }} /><col style={{ width:82 }} />
@@ -1155,7 +1155,7 @@ function FixedTab({ fixed, onUpdate, onDel, onAdd }) {
   return (
       <div style={{ overflowX:"auto", marginBottom:16 }}>
       <div style={{ ...css.fiWrap, marginBottom:0 }}>
-        <div style={{ display:"grid", gridTemplateColumns:"46px 1fr 110px 110px 72px 50px", borderBottom:`1px solid ${G.bd}`, background:"rgba(255,255,255,0.03)" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"46px minmax(150px,1fr) 110px 110px 72px 50px", borderBottom:`1px solid ${G.bd}`, background:"rgba(255,255,255,0.03)" }}>
           {["일","항목명","자산","금액(원)","구분","삭제"].map(h => (
             <div key={h} style={{ padding:"8px 10px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px" }}>{h}</div>
           ))}
@@ -1166,7 +1166,7 @@ function FixedTab({ fixed, onUpdate, onDel, onAdd }) {
           const rowInSt  = { ...inSt,  color: rowCol };
           const rowSelSt = { ...selSt, color: rowCol };
           return (
-          <div key={fi.id} style={{ display:"grid", gridTemplateColumns:"46px 1fr 110px 110px 72px 50px", alignItems:"center", borderBottom:`1px solid ${G.bdl}`, background: isInc ? G.redDim : "transparent" }}>
+          <div key={fi.id} style={{ display:"grid", gridTemplateColumns:"46px minmax(150px,1fr) 110px 110px 72px 50px", alignItems:"center", borderBottom:`1px solid ${G.bdl}`, background: isInc ? G.redDim : "transparent" }}>
             <div style={cellSt}><input style={{...rowInSt,width:36,textAlign:"center"}} type="number" min={1} max={31} defaultValue={fi.day} onBlur={e=>onUpdate(fi.id,"day",e.target.value)} /></div>
             <div style={cellSt}><input style={rowInSt} type="text" defaultValue={fi.name} onBlur={e=>onUpdate(fi.id,"name",e.target.value)} /></div>
             <div style={cellSt}>

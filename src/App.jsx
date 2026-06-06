@@ -471,6 +471,10 @@ export default function App() {
       // Use carryover as day-0 starting balance (이월 items included in netKb[1])
       let kb = 0, sh = 0;
       for (let d = 1; d <= dim; d++) { kb += netKb[d]; sh += netSh[d]; balKb[d] = kb; balSh[d] = sh; }
+    } else {
+      // 앵커 없음: 0원 기준으로 누적 (수동 입력이 잔액에 반영되도록)
+      let kb = 0, sh = 0;
+      for (let d = 1; d <= dim; d++) { kb += netKb[d]; sh += netSh[d]; balKb[d] = kb; balSh[d] = sh; }
     }
 
     return { balKb, balSh };
@@ -1129,8 +1133,8 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
             const isPst = isPast(d);
             const dayInc = dayMap[d].inc.reduce((s, it) => s + it.amount, 0);
             const dayExp = dayMap[d].exp.reduce((s, it) => s + it.amount, 0);
-            const kbB  = refDay > 0 || carryover.hasData ? (balKb[d] ?? null) : null;
-            const shB  = refDay > 0 || carryover.hasData ? (balSh[d] ?? null) : null;
+            const kbB  = balKb[d] ?? null;
+            const shB  = balSh[d] ?? null;
             const totB = kbB !== null && shB !== null ? kbB + shB : null;
 
             return (

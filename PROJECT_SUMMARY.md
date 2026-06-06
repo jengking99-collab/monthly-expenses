@@ -134,7 +134,15 @@ if (r.isTransfer) {
 }
 ```
 
-### Bug 2: 기준일 설정 시 이월 항목이 1일 수입에 중복 표시 (표시 오류)
+### Bug 2: 잔액 앵커 없을 때 수동 입력이 잔액에 미반영 (치명적)
+
+`buildBalances`가 `refDay > 0` OR `carryover.hasData` 중 하나도 없으면 `balKb/balSh`를 빈 객체로 반환. `DailyTab`에서도 `refDay > 0 || carryover.hasData` 조건이 false면 잔액 컬럼을 모두 `null`로 처리. **결과: 이전달 기준일 미설정 + 현재달 기준일 미설정 상태에서는 수동 입력을 해도 잔액 컬럼이 전부 빈칸.**
+
+**수정**:
+- `buildBalances` 세 번째 분기 추가: 앵커 없어도 0원 기준으로 누적 계산
+- `DailyTab` 잔액 표시 조건 단순화: `balKb[d] ?? null` (항상 계산값 표시)
+
+### Bug 3: 기준일 설정 시 이월 항목이 1일 수입에 중복 표시 (표시 오류)
 
 `buildDayMap`에서 `carryover.hasData`이면 항상 이월 항목을 1일 수입으로 추가했으나, `refDay > 0`(기준일 설정)이면 `buildBalances`의 앵커 방식 계산에서 이월 항목은 잔액에 반영되지 않음 → **UI 표시와 실제 잔액 불일치**.
 

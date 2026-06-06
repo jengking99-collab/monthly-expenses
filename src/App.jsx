@@ -378,8 +378,9 @@ export default function App() {
       }
     });
 
+    // 기준일 당일 거래부터 포함 (start-of-day 기준이므로)
     let kb = refKb, sh = refSh;
-    for (let d = refDay + 1; d <= pDim; d++) { kb += netKb[d]; sh += netSh[d]; }
+    for (let d = refDay; d <= pDim; d++) { kb += netKb[d]; sh += netSh[d]; }
     return { kb, sh, hasData: true };
   }, [data, fixedVersions, year, month]);
 
@@ -461,12 +462,13 @@ export default function App() {
     }
 
     if (refDay > 0) {
-      // Anchor at manual reference, propagate both directions
-      balKb[refDay] = bank.kb; balSh[refDay] = bank.sh;
-      let fk = bank.kb, fs = bank.sh;
+      // bank.kb = 기준일 당일 거래 전 잔액(시작 잔액) → 당일 거래 적용 후 마감 잔액 계산
+      balKb[refDay] = bank.kb + netKb[refDay]; balSh[refDay] = bank.sh + netSh[refDay];
+      let fk = balKb[refDay], fs = balSh[refDay];
       for (let d = refDay + 1; d <= dim; d++) { fk += netKb[d]; fs += netSh[d]; balKb[d] = fk; balSh[d] = fs; }
+      // 역방향: bank.kb = (refDay-1) 마감 잔액 → 역순 누적
       let bk = bank.kb, bs = bank.sh;
-      for (let d = refDay - 1; d >= 1; d--) { bk -= netKb[d + 1]; bs -= netSh[d + 1]; balKb[d] = bk; balSh[d] = bs; }
+      for (let d = refDay - 1; d >= 1; d--) { balKb[d] = bk; balSh[d] = bs; bk -= netKb[d]; bs -= netSh[d]; }
     } else if (carryover.hasData) {
       // Use carryover as day-0 starting balance (이월 items included in netKb[1])
       let kb = 0, sh = 0;

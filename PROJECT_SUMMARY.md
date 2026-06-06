@@ -50,7 +50,7 @@ monthly_expenses/
 ├── build-electron.mjs              ← Electron 빌드 스크립트
 ├── vite.config.js                  ← Vite 7, base: './'(Electron) vs '/'(Web)
 ├── eslint.config.js
-├── package.json                    ← version: 2.3.0
+├── package.json                    ← version: 2.6.0
 ├── PROJECT_SUMMARY.md              ← 이 파일
 ├── 월지출앱_배포개발가이드.md         ← Vercel/PWA/모바일 배포 가이드
 ├── dev.log                         ← 개발 서버 로그 (자동생성, gitignore)
@@ -61,7 +61,7 @@ monthly_expenses/
 
 ---
 
-## 웹 기능 (V1.5.0 ~ V2.3_Web)
+## 웹 기능 (V1.5.0 ~ V2.6_Web)
 
 ### PWA (Progressive Web App)
 - `public/manifest.json`: 앱 이름, 아이콘, 테마색, standalone 모드
@@ -80,8 +80,10 @@ monthly_expenses/
 - **단일 스크롤 컨테이너**: 루트 div를 `overflow:auto` + `flex:1` + `minHeight:0`으로 설정 → 가로/세로 모두 처리
 - **헤더 고정** (`position:sticky top:0`): 단일 컨테이너 내에서 `<thead>` sticky 동작
 - **날짜 열 고정** (`position:sticky left:0`): 전체 모드에서 날짜 열 고정, `zIndex` 계층 조정
-- **전체/요약 토글**: `compactDaily` 상태로 전체(10컬럼) ↔ 요약(날짜·지출내역·일지출·추가 4컬럼) 전환
-- **최소 너비**: 전체 모드 `minWidth:1026`, 요약 모드 `minWidth:0` → 화면 축소 시 가로 스크롤 활성화
+- **전체/요약 토글**: `compactDaily` 상태로 전체(10컬럼) ↔ 요약(4컬럼) 전환
+- **요약 모드 컬럼** (V2.5~): 날짜·지출내역·일지출·잔액(합계, 만원 단위 축약)
+- **요약 모드 레이아웃** (V2.6): 폰 화면 너비 자동 맞춤, `fmtM()` 함수로 잔액 만원 단위 표시, 셀 패딩·폰트 최적화
+- **최소 너비**: 전체 모드 `minWidth:1026`, 요약 모드 `minWidth:0` → 화면 축소 시 가로 스크롤 없이 자동 배분
 
 ### 고정항목 관리 (FixedTab)
 - **CSS grid → `<table>` 전환**: 열 공유 축이 없는 grid row 방식에서 native `<table>`로 전환
@@ -114,6 +116,7 @@ monthly_expenses/
 | `mexp_v1_fixed_base` | 수동 (💾 기본 저장) | 고정항목 버전 이력 `[{ effectiveFrom, items }]` |
 | `mexp_v1_data` | 자동 (변경 즉시) | 월별 지출 전체 데이터 |
 | `mexp_v1_meta` | 자동 | 마지막 선택 연도/월 |
+| `mexp_sync_key` | 연결 시 1회 저장 | Firebase 동기화 키 (앱 재시작 후에도 유지) |
 
 ---
 
@@ -147,7 +150,18 @@ if (r.isTransfer) {
 `buildDayMap`에서 `carryover.hasData`이면 항상 이월 항목을 1일 수입으로 추가했으나, `refDay > 0`(기준일 설정)이면 `buildBalances`의 앵커 방식 계산에서 이월 항목은 잔액에 반영되지 않음 → **UI 표시와 실제 잔액 불일치**.
 
 **수정**: `refDay === 0`일 때만 이월 항목 표시.
-| `mexp_sync_key` | 연결 시 1회 저장 | Firebase 동기화 키 (앱 재시작 후에도 유지) |
+
+### Bug 4: 잔액 기준일 당일 거래가 잔액 계산에 미반영 (치명적)
+
+`buildBalances`가 `bank.kb`를 기준일의 **마감 잔액**으로 처리 → 기준일 당일에 입력한 수입·지출이 잔액에 반영되지 않음. 예: 기준일 1일에 대출 4,000,000 수입 입력 → 1일 잔액이 여전히 bank.kb 그대로 표시.
+
+**근본 원인**: 사용자는 bank.kb를 **시작 잔액**(오전 기준, 거래 전)으로 입력하는데 코드는 마감 잔액으로 가정.
+
+**수정**:
+- `buildBalances`: `balKb[refDay] = bank.kb + netKb[refDay]` (당일 거래 적용)
+- 전진 루프: anchor = `bank.kb + netKb[refDay]` 기준으로 누적
+- 역방향 루프: `bank.kb`를 (refDay-1) 마감 잔액으로 취급, `d`마다 `netKb[d]` 제거
+- `carryover` useMemo: 루프 시작 `refDay+1` → `refDay` (기준일 당일 거래 포함)
 
 ---
 
@@ -283,9 +297,9 @@ process.env.VITE_ELECTRON = '1';  // 최상단에서 설정
 | **V2.1_Web** | **모바일 UI 개선: 컴팩트 요약카드, 상단 액션 버튼, 슬라이드 드로어 사이드바** |
 | **V2.2_Web** | **가로 스크롤(minWidth 기법), 전체/요약 토글, FixedTab 항목명 표시 수정** |
 | **V2.3_Web** | **헤더·날짜열 고정(sticky), 단일 scroll 컨테이너, FixedTab CSS grid → table 전환** |
-| **V2.4_Web** | **이월 계산 버그 수정: 이전달 이체 행 미반영, 기준일 설정 시 이월 항목 표시 오류** |
+| **V2.4_Web** | **잔액 계산 버그 4종 수정: 이전달 이체 미반영·앵커 없을 때 잔액 미표시·이월 중복 표시·기준일 당일 거래 미반영** |
 | **V2.5_Web** | **모바일 요약 뷰: 날짜·지출내역·일지출·잔액(합계)으로 변경, 추가 버튼 제거** |
-| **V2.6_Web** | **모바일 요약 뷰 2안: 화면 너비 자동 맞춤, 잔액 만원 단위 축약, 패딩 최적화** |
+| **V2.6_Web** | **모바일 요약 뷰 화면 자동 맞춤: fmtM(만원 축약)·폰트 11px·셀 패딩 최적화·컬럼 너비 재배분** |
 
 ---
 
@@ -293,7 +307,8 @@ process.env.VITE_ELECTRON = '1';  // 최상단에서 설정
 
 | 항목 | 내용 |
 |------|------|
-| 이월 조건 | 이전달에 `🏦 잔액 설정` 필요. 미설정 시 이월 = 0 |
+| 이월 조건 | 이전달에 `🏦 잔액 설정` 필요. 미설정 시 0원 기준 누적 표시 (V2.4~) |
+| 잔액 기준일 입력 기준 | bank.kb/sh는 기준일 **시작 잔액** (당일 거래 전)으로 입력해야 정확함 |
 | 고정항목 변경 | `💾 기본 저장` 필수. 누르지 않으면 다음 실행 시 이전 데이터로 복원 |
 | Electron 동기화 | Firebase 동기화는 웹 전용 (Electron은 JSON 백업 사용) |
 | 동기화 키 | 기기당 1회 입력. localStorage에 영구 저장. 연결 해제 시 삭제 |

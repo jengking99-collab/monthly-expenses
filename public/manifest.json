@@ -1,0 +1,18 @@
+{
+  "name": "월지출관리",
+  "short_name": "월지출",
+  "description": "월별 고정·변동 수입/지출 관리 앱",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

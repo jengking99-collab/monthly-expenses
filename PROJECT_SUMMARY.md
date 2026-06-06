@@ -1,6 +1,6 @@
 # 월 지출관리 프로젝트 세션 요약
 
-> 마지막 업데이트: 2026-06-05 (v1.5.0)
+> 마지막 업데이트: 2026-06-06 (v2.0_Web)
 
 ---
 
@@ -10,9 +10,22 @@
 |------|------|
 | **경로** | `D:\Claude_Code\monthly_expenses` |
 | **목적** | 매월 고정/변동 수입·지출 관리, 통장별 잔액 실시간 추적 |
-| **스택** | React 19 + Vite 8 + Recharts + xlsx + Electron 32 |
-| **현재 버전** | **V1.5.0** (`package.json` version: `1.5.0`) |
-| **배포 파일** | `releases/v15/월지출관리_v1.5.exe` (포터블) |
+| **스택** | React 19 + Vite 7 + Recharts + xlsx + Electron 32 |
+| **현재 버전** | **V2.0_Web** (`package.json` version: `2.0.0`) |
+| **웹 배포** | https://monthly-expenses-navy.vercel.app/ |
+| **GitHub** | jengking99-collab/monthly-expenses |
+| **Electron 배포** | `releases/v15/월지출관리_v1.5.exe` (포터블, 마지막 빌드) |
+
+---
+
+## 운영 인프라
+
+| 서비스 | 역할 | 플랜 | 상태 |
+|--------|------|------|------|
+| **Vercel** | 웹 앱 호스팅/CDN | Hobby (무료) | 24/7 ON |
+| **Firebase Firestore** | 기기 간 동기화 DB | Spark (무료) | 24/7 ON |
+| **GitHub** | 코드 저장소 | Free | 24/7 ON |
+| 로컬 Vite dev | 개발 서버 | - | 수동 시작 |
 
 ---
 
@@ -21,261 +34,190 @@
 ```
 monthly_expenses/
 ├── src/
-│   ├── App.jsx                     ← 전체 앱 (1,354줄, 단일 파일)
-│   ├── main.jsx                    ← React 진입점
+│   ├── App.jsx                     ← 전체 앱 (단일 파일, 동기화 로직 포함)
+│   ├── firebase.js                 ← Firebase 초기화 (VITE_FIREBASE_* env vars)
+│   ├── main.jsx                    ← React 진입점 + SW 등록
 │   ├── index.css                   ← 최소 리셋 CSS
-│   ├── App.css                     ← Vite scaffold 잔여 파일 (미사용)
-│   └── assets/                     ← Vite scaffold 잔여 폴더 (미사용)
+│   └── assets/                     ← Vite scaffold 잔여 (미사용)
 ├── electron/
-│   ├── main.cjs                    ← Electron 메인 프로세스 (CommonJS)
-│   └── preload.cjs                 ← Electron preload (CommonJS)
+│   ├── main.cjs                    ← Electron 메인 프로세스
+│   └── preload.cjs                 ← Electron preload
 ├── public/
 │   ├── favicon.svg                 ← 앱 아이콘
-│   └── icons.svg                   ← 아이콘 모음
-├── build-electron.mjs              ← 스마트 빌드 스크립트
-├── vite.config.js                  ← base: './' 설정 포함
-├── eslint.config.js                ← ESLint 설정
-├── package.json                    ← version: 1.5.0
-├── README.md                       ← 사용법 및 Excel 형식 가이드
+│   ├── manifest.json               ← PWA 매니페스트
+│   └── sw.js                       ← 서비스 워커 (cache-first/network-first)
+├── .env.local                      ← Firebase 설정 (gitignore, 로컬 전용)
+├── build-electron.mjs              ← Electron 빌드 스크립트
+├── vite.config.js                  ← Vite 7, base: './'(Electron) vs '/'(Web)
+├── eslint.config.js
+├── package.json                    ← version: 2.0.0
 ├── PROJECT_SUMMARY.md              ← 이 파일
-├── 코딩작업.txt                     ← 개발 메모 및 버전별 작업 내역
-├── 월지출앱_배포개발가이드.md         ← Vercel/PWA/모바일 배포 가이드 (미적용)
-├── dev.log                         ← 개발 서버 로그
+├── 월지출앱_배포개발가이드.md         ← Vercel/PWA/모바일 배포 가이드
+├── dev.log                         ← 개발 서버 로그 (자동생성, gitignore)
 └── releases/
-    └── v15/                        ← V1.5.0 배포본 ✅ (현재)
-        ├── 월지출관리_v1.5.exe
-        └── win-unpacked/
+    └── v15/                        ← V1.5.0 Electron 배포본 (마지막 빌드)
+        └── 월지출관리_v1.5.exe
 ```
 
 ---
 
-## Electron 구성
+## 웹 기능 (V1.5.0 ~ V2.0_Web)
 
-### electron/main.cjs
+### PWA (Progressive Web App)
+- `public/manifest.json`: 앱 이름, 아이콘, 테마색, standalone 모드
+- `public/sw.js`: 서비스 워커 (캐시명 `mexp-v1.5`)
+  - Navigation 요청: network-first → fallback to cached index.html
+  - Static assets: cache-first
+  - `skipWaiting()` + `clients.claim()` 즉시 활성화
+
+### 반응형 레이아웃 (모바일)
+- `useMobile()` 훅: 768px 브레이크포인트, resize 이벤트 감지
+- 모바일 사이드바: `position:fixed`, `translateX(-100%/0)` 슬라이드 드로어 + backdrop
+- 상단 햄버거(☰) 버튼
+- 요약 카드 2×2 그리드 (`flex wrap`, `calc(50% - 5px)`)
+
+### JSON 백업/복원
+- `📤 전체 내보내기(JSON)`: 전체 localStorage → `.json` 파일 다운로드
+- `📥 전체 가져오기(JSON)`: `.json` 파일 → 전체 데이터 복원 (confirm 확인 후)
+
+### Firebase 기기 간 동기화
+- `src/firebase.js`: `VITE_FIREBASE_*` env vars 기반 초기화 (설정 없으면 graceful skip)
+- 동기화 키: 사용자 정의 비밀 키 → `localStorage("mexp_sync_key")` 영구 저장
+- **데이터 방향**:
+
+| 방향 | 방식 |
+|------|------|
+| 이 기기 → Firestore | 자동 (데이터 변경 후 5초 debounce) |
+| Firestore → 이 기기 | 앱 로드 시 자동 (silent) + 수동 버튼 |
+
+- Firestore 구조: `sync/{syncKey}` → `{ fixed_base, data, updatedAt }`
+
+---
+
+## localStorage 키
+
+| 키 | 저장 방식 | 내용 |
+|----|-----------|------|
+| `mexp_v1_fixed_base` | 수동 (💾 기본 저장) | 고정항목 버전 이력 `[{ effectiveFrom, items }]` |
+| `mexp_v1_data` | 자동 (변경 즉시) | 월별 지출 전체 데이터 |
+| `mexp_v1_meta` | 자동 | 마지막 선택 연도/월 |
+| `mexp_sync_key` | 연결 시 1회 저장 | Firebase 동기화 키 (앱 재시작 후에도 유지) |
+
+---
+
+## 컴포넌트 목록
+
+### 공유 컴포넌트
+
+| 컴포넌트 | 역할 |
+|----------|------|
+| `Btn` | 버튼 (variant: default/primary/green/amber/purple/teal/red) |
+| `XBtn` | 닫기(✕) 버튼 |
+| `BankBadge` | KB/신한 배지 |
+| `Toast` | 하단 우측 알림 (2.8초 자동 소멸) |
+| `CntBadge` | 항목 수 배지 |
+| `PulseDot` | 오늘 날짜 파란 점 |
+| `WeekDay` | 요일 표시 (일=빨강, 토=파랑) |
+| `NumCell` / `BalCell` | 테이블 셀 |
+| `CommaInput` | 숫자 입력 + 자동 쉼표 |
+
+### 페이지 컴포넌트
+
+| 컴포넌트 | 역할 |
+|----------|------|
+| `App` | 상태 총괄, CRUD, Firebase 동기화 로직 |
+| `Sidebar` | 년도/월 선택 + 액션 버튼 (동기화 상태 뱃지 포함) |
+| `SyncModal` | 동기화 키 입력, 상태 표시, pull 버튼 |
+| `SummaryCard` | KB잔액/신한잔액/총지출/총수입 |
+| `DailyTab` | 날짜별 잔액 추적 |
+| `FixedTab` | 고정항목 편집 |
+| `AddModal` | 항목 추가 (수입/지출/이체) |
+| `EditRowModal` | 수동 항목 수정 |
+| `BankModal` | 잔액 기준일 설정 |
+| `StatsOverlay` | 년/월 통계 (PieChart + LineChart) |
+
+---
+
+## Electron 구성 (데스크탑 앱)
 
 ```javascript
-const { app, BrowserWindow, dialog, Menu, ipcMain } = require('electron');
-const { exec } = require('child_process');
+// electron/main.cjs
+// exe 옆의 data/ 폴더에 userData 고정 (포터블 앱)
+app.setPath('userData', path.join(path.dirname(app.getPath('exe')), 'data'));
 
-// exe 옆의 data/ 폴더에 저장 (포터블 앱에 적합)
-if (!isDev) {
-  app.setPath('userData', path.join(path.dirname(app.getPath('exe')), 'data'));
-}
-
-// 엑셀 저장: will-download 이벤트로 Save 다이얼로그 표시
-// 계산기 열기: ipcMain.on('open-calculator', () => exec('calc.exe'))
-// 외부 URL 탐색 차단: will-navigate 이벤트
-```
-
-### electron/preload.cjs
-
-```javascript
+// electron/preload.cjs
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   openCalculator: () => ipcRenderer.send('open-calculator'),
 });
+// → window.electronAPI?.openCalculator?.() : 웹에서는 안전하게 no-op
 ```
-
-> `window.electronAPI?.openCalculator?.()` — 웹 환경에서는 안전하게 no-op
-
----
-
-## 핵심 소스 — App.jsx 구성
-
-### 자산(ASSETS) 상수
-
-```javascript
-const ASSETS = [
-  "KB국민은행", "신한은행",   // 잔액 추적 대상 (isKb / isSh 판별: 이름에 "국민"/"신한" 포함 여부)
-  "KB국민카드", "하나카드", "삼성카드", "카카오뱅크", "삼성 앱카드", "기타"
-];
-```
-
-> 잔액 투영(`buildBalances`)은 `KB국민은행`, `신한은행` 항목만 집계. 카드 항목은 지출로만 처리됨.
-
----
-
-### 디자인 토큰
-
-```javascript
-const G = {
-  bg, bg2, bgc, bgh,          // 배경 계층 (어두운 순)
-  bd, bdl,                     // 보더 (일반/연한)
-  t1, t2, tm,                  // 텍스트 (밝은→어두운)
-  blue, blueDim,               // 강조색
-  green, greenDim,             // 수입/긍정
-  red, redDim,                 // 지출/경고
-  amber, amberDim,             // 수동 항목
-  purple, purpleDim,
-  teal, tealDim,
-};
-
-const css = { app, sidebar, logo, secLbl, main, topbar, sumRow, scard,
-              content, tabBar, tblWrap, fiWrap, overlay, modal, statsOv, statsIn };
-```
-
----
-
-### localStorage 키
-
-| 키 | 저장 방식 | 내용 |
-|----|-----------|------|
-| `mexp_v1_fixed_base` | **수동** (💾 기본 저장 버튼) | 고정항목 버전 이력 `[{ effectiveFrom:"YYYY-MM", items:[...] }]` (v1.2.1~). 구버전은 자동 마이그레이션 |
-| `mexp_v1_data` | **자동** (변경 즉시) | 월별 지출 전체 데이터 |
-| `mexp_v1_meta` | **자동** | 마지막 선택 연도/월 |
-
-> **데이터 저장 경로** (Electron): exe 옆 `data\Local Storage\leveldb\`  
-> v1.4.0~: `app.setPath('userData', ...)` 고정 적용 — 버전이 바뀌어도 같은 폴더 사용 (포터블 앱에 적합)
-
-### 컴포넌트 목록
-
-#### 공유 컴포넌트 (Shared)
-
-| 컴포넌트 | 역할 |
-|----------|------|
-| `Btn` | 버튼 (variant: default / primary / green / amber / purple / teal / red) |
-| `XBtn` | 닫기(✕) 버튼 |
-| `BankBadge` | KB/신한 배지 (type: "kb" \| "sh") |
-| `Toast` | 하단 우측 알림 메시지 (ok=초록 테두리, error=빨강 테두리, 2.8초 후 자동 소멸) |
-| `CntBadge` | 항목 수 배지 |
-| `PulseDot` | 오늘 날짜 행의 파란 점 |
-| `WeekDay` | 요일 표시 (일=빨강, 토=파랑) |
-| `NumCell` | 수입/지출 숫자 테이블 셀 |
-| `CommaInput` | 숫자 입력 + 자동 쉼표 표시 컴포넌트 (v1.2.2~) |
-| `BalCell` | 잔액 테이블 셀 |
-
-#### 페이지 컴포넌트
-
-| 컴포넌트 | 역할 |
-|----------|------|
-| `App` | 상태 총괄, CRUD (`addRow` / `updateRow` / `delRow`), Excel I/O (`exportFixedExcel` / `exportDailyExcel`) |
-| `Tags` | DailyTab 항목 뱃지. 고정수입=초록, 고정지출=빨강, 수동=노랑(클릭 시 수정모달), 이월=파랑. 수동 항목에만 ✕ 삭제 버튼 |
-| `TransferTags` | 이체 항목 뱃지. teal 색상, `이름 KB→신한 금액` 형식. 클릭=수정, ✕=삭제 (v1.5.0~) |
-| `Sidebar` | 년도(2020~2040) + 월 선택, 액션 버튼 (고정항목관리 / 내보내기 / 가져오기 / 통계 / 🧮계산기) |
-| `SummaryCard` | KB잔액 / 신한잔액 / 총지출 / 총수입 |
-| `DailyTab` | 날짜별 잔액 추적. props: `onAddDay` / `onDelManual` / `onEditManual` |
-| `FixedTab` | 고정항목 편집 + 💾 기본저장 / 🗑 초기화 버튼 |
-| `AddModal` | 항목 추가 폼. 구분: 수입/지출/이체. 이체 선택 시 출금→입금 자산 선택 UI (v1.5.0~) |
-| `EditRowModal` | 수동 항목 수정 폼. 이체 행 감지 시 출금/입금 자산 편집 모드로 전환 (v1.5.0~) |
-| `BankModal` | 잔액 기준일 설정. 날짜(1~말일) 직접 지정, 기본값=오늘 or 기존 저장일 (v1.3.1~) |
-| `StatsOverlay` | 년 통계(월별 수입/지출 추이) / 월 통계(일별 추이, 년+월 독립 선택) 분리. PieChart + LineChart. 내부 상태: `statMonth` |
 
 ---
 
 ## 데이터 모델
 
 ```javascript
-// mexp_v1_fixed_base — 고정항목 (💾기본저장 버튼 클릭 시 저장)
-// 저장 안 했으면 빈 배열 [] 로 시작 (defaultFixed 없음, v1.3.0~)
-[
-  { id, day, name, asset, amount, type: "income" | "expense" }
-]
-
-// mexp_v1_data — 월별 지출 (변경 즉시 자동저장)
+// mexp_v1_data
 {
   "2026-06": {
     rows: [
-      { id, day, asset, name, expense, income, memo, isSub, isManual }
-      // isManual: true → 수동 추가 항목 (Tags에서 클릭=수정, ✕=삭제)
-      // isSub: true    → 서브행 (합산/잔액 계산에서 제외)
+      { id, day, asset, name, expense, income, memo, isSub, isManual },
+      { id, day, name, fromAsset, toAsset, amount, isTransfer:true }  // 이체
     ],
-    bank: { kb, sh, date }   // date: "YYYY-MM-DD", 사용자가 직접 날짜 지정 (v1.3.1~)
+    bank: { kb, sh, date }  // date: "YYYY-MM-DD"
   }
 }
 
-// mexp_v1_meta — 마지막 선택 상태 (자동저장)
-{ year: 2026, month: 6 }
+// mexp_v1_fixed_base
+[{ effectiveFrom: "YYYY-MM", items: [{ id, day, name, asset, amount, type }] }]
 
-// dayMap (런타임) — DailyTab 렌더링용
-{
-  [day]: {
-    inc: [{ name, asset, amount, isFixed, isCarryover, id, rKey }],
-    exp: [{ name, asset, amount, isFixed, id, rKey }],
-    trs: [{ name, fromAsset, toAsset, amount, isFixed, id, rKey }]  // v1.5.0~
-  }
-}
-// isFixed: true → 고정항목 (수정/삭제 불가)
-// isCarryover: true → 이월 항목 (파란색, 수정/삭제 불가)
-// rKey: "YYYY-MM" → data[rKey].rows에서 해당 row 참조용
-
-// 이체 행 (mexp_v1_data rows 내 — v1.5.0~)
-{ id, day, name, fromAsset, toAsset, amount, expense:0, income:0, memo, isSub:false, isManual:true, isTransfer:true }
+// Firestore sync/{key}
+{ fixed_base: JSON, data: JSON, updatedAt: Timestamp }
 ```
-
----
-
-## 주요 로직 포인트
-
-### 프로그램 시작 로직
-- 고정항목 저장 데이터 있음 → 로드 적용 / 없음 → 빈 배열 `[]` (v1.3.0~)
-- `defaultFixed()` 함수 정의는 코드에 남아 있으나 호출되지 않음 (dead code — 삭제 대상)
-- 월 지출 저장 데이터 있음 → 로드 적용 / 없음 → 고정항목만 dayMap에 표시
-
-### 이월 계산 (`carryover` useMemo)
-- 이전달 `bank.date` 기준으로 최종 잔액 계산
-- `bank.date`가 없으면 이월 = 0
-- 이월이 있으면 Day 1 수입 항목에 자동 표시 + 파란 배너 출력
-
-### 잔액 투영 (`buildBalances`)
-
-| 조건 | 동작 |
-|------|------|
-| `bank.date` 있음 | 해당일 기준 앞뒤 양방향 전파 |
-| `bank.date` 없고 이월 있음 | Day 1부터 누적 계산 |
-| 둘 다 없음 | 잔액 표시 안 함 (`-`) |
-
-### 실시간 잔액 (SummaryCard)
-- 현재 달 조회 시: `balKb[오늘날짜]` 표시 + `실시간` 뱃지
-- 다른 달: `bank.kb` 또는 이월값 표시
-
-### 수동 항목 수정 흐름 (v1.3.0~)
-1. DailyTab의 수동 태그(노란색) 클릭
-2. `onEditManual(it)` → `data[it.rKey].rows`에서 실제 row 조회
-3. `EditRowModal` 열림 (기존 값 pre-fill)
-4. 수정 후 "수정 저장" → `updateRow(k, id, updated)` → `setData` → 자동저장
-
-### 이체 처리 흐름 (v1.5.0~)
-- `buildDayMap`: `isTransfer` 행 → `trs[]` 배열에 `{ name, fromAsset, toAsset, amount, id, rKey }` 추가
-- `buildBalances`: `trs` 항목 순회 → fromAsset=KB면 netKb 차감, toAsset=신한이면 netSh 증가 (양방향)
-- 이체는 `expense`/`income` = 0 → 총지출·총수입 합산에서 제외, 통계에도 미포함
-- 이체 태그(teal) 클릭 → `EditRowModal`이 `row.isTransfer` 감지 → 출금/입금 자산 편집 모드
 
 ---
 
 ## 빌드 명령어
 
 ```bash
-# 개발 서버 (웹)
-npm run dev
-
-# 웹 빌드만
-npm run build
-
-# exe 빌드 (스마트 빌더 — 자동 suffix 처리)
-npm run electron:build
+npm run dev              # 개발 서버 (웹)
+npm run build            # 웹 프로덕션 빌드 (Vercel 자동 배포)
+npm run electron:build   # Electron exe 빌드
+git push origin master   # → Vercel 자동 재배포 트리거
 ```
 
-### 빌드 스크립트 동작 (`build-electron.mjs`)
+### Electron vs Web 빌드 분기
 
-```
-version: "1.5.0"  →  기준 폴더: releases/v15
-  ├─ releases/v15  실패(파일 잠김)  →  releases/v15b 자동 시도
-  ├─ releases/v15b 실패            →  releases/v15c 자동 시도
-  └─ 성공 시 해당 경로를 package.json에 저장
+```javascript
+// vite.config.js
+base: process.env.VITE_ELECTRON === '1' ? './' : '/'
+
+// build-electron.mjs
+process.env.VITE_ELECTRON = '1';  // 최상단에서 설정
 ```
 
 ---
 
-## 다음 버전 빌드 절차
-
-`package.json` 2곳 수정 후 `npm run electron:build` 실행:
+## 주요 의존성
 
 ```json
-"version": "1.6.0",
-"productName": "월지출관리_v1.6"
+"dependencies": {
+  "firebase": "^12.14.0",
+  "react": "^19.2.6",
+  "react-dom": "^19.2.6",
+  "recharts": "^3.8.1",
+  "xlsx": "^0.18.5"
+},
+"devDependencies": {
+  "@vitejs/plugin-react": "^5.0.0",
+  "electron": "^32.3.3",
+  "electron-builder": "^25.1.8",
+  "vite": "^7.0.0"
+}
 ```
 
-→ 자동으로 `releases/v16/월지출관리_v1.6.exe` 생성
+> **Vite 7 사용 이유**: Vite 8의 Rolldown 번들러가 Firebase subpath exports(`firebase/firestore`)를 처리하지 못하는 이슈로 Vite 7(Rollup)로 고정
 
 ---
 
@@ -284,22 +226,14 @@ version: "1.5.0"  →  기준 폴더: releases/v15
 | 버전 | 주요 변경 |
 |------|-----------|
 | V0.2 | 초기 구현, XLSX import/export, 고정항목, 통계 |
-| V1.0 | 이월 자동 계산, 자동저장, 고정항목 수동저장, 2020~2040 년도 선택, 실시간 잔액, 월/연간 통계 |
-| V1.1 | Tags 컴포넌트 문서화, ASSETS 상수 명세, App.css 데드코드 확인 (문서 보완) |
-| V1.2 | 수동 입력 '일별 지출내역(LedgerTab)' 탭 제거, 고정항목 🗑 초기화 버튼 추가 |
-| V1.2.1 | 기본 저장 버전 이력 관리 — 저장 시 현재 월~만 반영, 과거 월은 해당 월 저장 버전 사용 |
-| V1.2.2 | 금액 입력 자동 쉼표 표시 (`CommaInput` 컴포넌트) — 잔액설정·항목추가·고정항목 금액 적용 |
-| V1.2.3 | 일별 예상 잔액 테이블 헤더 고정 (sticky), 고정항목 수입 행 적색 표시 |
-| V1.2.4 | 고정항목 헤더도 sticky 적용, 두 탭 내부 세로 스크롤 제거 → css.content 단일 스크롤로 통합 |
-| V1.2.5 | TabBar·탭별 제목/버튼 영역 App 레벨 sticky 고정 영역으로 분리, DailyTab·FixedTab은 테이블만 렌더링 |
-| V1.2.6 | 컬럼 헤더 행도 sticky 고정 영역에 통합 — DailyTab colgroup 기반 table-layout:fixed 정렬, FixedTab 그리드 헤더 고정 |
-| V1.3.0 | 수동 항목 수정 (`EditRowModal`), 일별 엑셀 저장 (`exportDailyExcel`), 💾 저장 버튼, 고정항목 미저장 시 빈 배열로 시작 |
-| V1.3.1 | 잔액 기준일 직접 지정 (`BankModal` 날짜 입력), 🧮 계산기 버튼 (Electron IPC → calc.exe) |
-| V1.4.0 | userData 경로 고정 (`app.setPath` → exe 옆 `data/`) — 버전 업 시 데이터 인계 문제 해결 |
-| V1.4.1 | 통계 화면 개편 — 년 통계(월별 수입/지출 추이) / 월 통계(일별 추이, 년+월 독립 선택) 분리 |
-| V1.4.2 | 통계 트렌드 차트 전체 너비로 변경 및 항목 테이블 위로 이동, 파이 차트 좌측 절반 유지 |
-| V1.4.3 | 통계 화면에 '자산별 수입 비율' 파이 차트 추가 (지출 파이 옆에 나란히 배치) |
-| V1.5.0 | `releases/v15/` ✅ 이체 기능 추가 — 자산→자산 이체, KB/신한 잔액 자동 반영, 이체 내역 컬럼, 수정/삭제 지원 |
+| V1.0 | 이월 자동 계산, 자동저장, 실시간 잔액 |
+| V1.2 | LedgerTab 제거, 고정항목 버전 이력, CommaInput |
+| V1.3 | 수동 항목 수정, 일별 엑셀, BankModal 날짜 지정 |
+| V1.4 | userData 경로 고정, 통계 개편 (년/월 분리) |
+| V1.5.0 | 이체 기능, 웹 배포 준비 (`releases/v15/`) |
+| V1.5.0_Web | GitHub + Vercel 배포, PWA, 반응형, JSON 백업 |
+| V1.6.0 | Firebase Firestore 동기화 구현 |
+| **V2.0_Web** | **앱 로드 시 자동 pull, Vite 7 고정, 버전 표기 통일** |
 
 ---
 
@@ -307,30 +241,9 @@ version: "1.5.0"  →  기준 폴더: releases/v15
 
 | 항목 | 내용 |
 |------|------|
-| ~~`releases/v02` 폴더~~ | 구버전 배포본 폴더 (v02~v14) — 로컬에 없음, git 이력에만 존재 |
-| ~~`asar: false` 경고~~ | ✅ v1.4.1 빌드 시점 제거 완료 — asar 기본값(true) 복원 |
-| 이월 조건 | 이전달에 `🏦 잔액 설정`을 해야 이월 계산됨. 미설정 시 이월 = 0 |
-| 고정항목 변경 | `💾 기본 저장` 필수. 누르지 않으면 다음 실행 시 이전 데이터로 복원됨 |
-| Excel 가져오기 | 고정항목 탭 전용. `고정항목` 시트가 포함된 `.xlsx`만 인식 |
-| `package.json` type | `"type": "module"` → Electron 파일은 반드시 `.cjs` 확장자 사용 |
-| userData 경로 | ✅ v1.4.0~ 해결: exe 옆 `data/` 폴더로 고정. 이전 버전 데이터는 `%APPDATA%\월지출관리_v1.x\` → `data/` 로 수동 1회 복사 필요 |
-
----
-
-## 주요 의존성
-
-```json
-"dependencies": {
-  "react": "^19.2.6",
-  "react-dom": "^19.2.6",
-  "recharts": "^3.8.1",
-  "xlsx": "^0.18.5"
-},
-"devDependencies": {
-  "electron": "^32.3.3",
-  "electron-builder": "^25.1.8",
-  "vite": "^8.0.12",
-  "concurrently": "^9.2.1",
-  "wait-on": "^8.0.5"
-}
-```
+| 이월 조건 | 이전달에 `🏦 잔액 설정` 필요. 미설정 시 이월 = 0 |
+| 고정항목 변경 | `💾 기본 저장` 필수. 누르지 않으면 다음 실행 시 이전 데이터로 복원 |
+| Electron 동기화 | Firebase 동기화는 웹 전용 (Electron은 JSON 백업 사용) |
+| 동기화 키 | 기기당 1회 입력. localStorage에 영구 저장. 연결 해제 시 삭제 |
+| Firestore 규칙 | `allow read, write: if true` — 보안은 syncKey 비공개에 의존 |
+| Firebase 무료 한도 | 읽기 50K/일, 쓰기 20K/일 — 개인 사용 초과 없음 |

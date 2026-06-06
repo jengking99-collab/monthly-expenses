@@ -1,6 +1,6 @@
 # 월 지출관리 프로젝트 세션 요약
 
-> 마지막 업데이트: 2026-06-07 (V2.5_Web)
+> 마지막 업데이트: 2026-06-07 (V2.6_Web)
 
 ---
 
@@ -11,7 +11,7 @@
 | **경로** | `D:\Claude_Code\monthly_expenses` |
 | **목적** | 매월 고정/변동 수입·지출 관리, 통장별 잔액 실시간 추적 |
 | **스택** | React 19 + Vite 7 + Recharts + xlsx + Electron 32 |
-| **현재 버전** | **V2.5_Web** (`package.json` version: `2.5.0`) |
+| **현재 버전** | **V2.6_Web** (`package.json` version: `2.6.0`) |
 | **웹 배포** | https://monthly-expenses-navy.vercel.app/ |
 | **GitHub** | jengking99-collab/monthly-expenses |
 | **Electron 배포** | `releases/v15/월지출관리_v1.5.exe` (포터블, 마지막 빌드) |
@@ -285,6 +285,7 @@ process.env.VITE_ELECTRON = '1';  // 최상단에서 설정
 | **V2.3_Web** | **헤더·날짜열 고정(sticky), 단일 scroll 컨테이너, FixedTab CSS grid → table 전환** |
 | **V2.4_Web** | **이월 계산 버그 수정: 이전달 이체 행 미반영, 기준일 설정 시 이월 항목 표시 오류** |
 | **V2.5_Web** | **모바일 요약 뷰: 날짜·지출내역·일지출·잔액(합계)으로 변경, 추가 버튼 제거** |
+| **V2.6_Web** | **모바일 요약 뷰 2안: 화면 너비 자동 맞춤, 잔액 만원 단위 축약, 패딩 최적화** |
 
 ---
 

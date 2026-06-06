@@ -29,6 +29,7 @@ const pad         = (n) => String(n).padStart(2, "0");
 const uid         = () => Math.random().toString(36).slice(2, 10);
 const fmt         = (n) => (n || 0).toLocaleString("ko-KR");
 const fmtW        = (n) => fmt(n) + "원";
+const fmtM        = (n) => Math.round((n || 0) / 10000).toLocaleString("ko-KR") + "만";
 const mKey        = (y, m) => `${y}-${pad(m)}`;
 const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
 const isKb        = (a) => !!(a && a.includes("국민"));
@@ -160,8 +161,8 @@ const WeekDay = ({ dow }) => {
   );
 };
 
-const NumCell = ({ val, prefix, color, zero }) => (
-  <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}`, textAlign:"right", color: val>0?color:G.tm, fontWeight: val>0?500:400 }}>
+const NumCell = ({ val, prefix, color, zero, compact }) => (
+  <td style={{ padding: compact?"6px 8px":"8px 12px", borderBottom:`1px solid ${G.bdl}`, textAlign:"right", color: val>0?color:G.tm, fontWeight: val>0?500:400 }}>
     {val>0 ? `${prefix}${fmt(val)}` : (zero?"-":"")}
   </td>
 );
@@ -203,9 +204,9 @@ const CommaInput = ({ value, onChange, onBlur: onBlurProp, style, placeholder = 
   );
 };
 
-const BalCell = ({ val, bold }) => (
-  <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}`, textAlign:"right", color: val===null?G.tm:val<0?G.red:G.blue, fontWeight: bold?700:600 }}>
-    {val===null ? "-" : fmtW(val)}
+const BalCell = ({ val, bold, compact }) => (
+  <td style={{ padding: compact?"6px 8px":"8px 12px", borderBottom:`1px solid ${G.bdl}`, textAlign:"right", color: val===null?G.tm:val<0?G.red:G.blue, fontWeight: bold?700:600 }}>
+    {val===null ? "-" : compact ? fmtM(val) : fmtW(val)}
   </td>
 );
 
@@ -995,7 +996,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.5_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.6_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1098,14 +1099,14 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
     container.scrollTop = Math.max(0, newTop);
   }, [month]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const thBase = { position:"sticky", top:0, background:G.bgc, padding:"9px 12px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" };
+  const thBase = { position:"sticky", top:0, background:G.bgc, padding: compact?"6px 8px":"9px 12px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" };
 
   return (
     <div ref={scrollRef} style={{ flex:1, minHeight:0, overflow:"auto", background:G.bgc, border:`1px solid ${G.bd}`, borderRadius:14, marginBottom:16 }}>
-      <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%", minWidth: compact?0:1026 }}>
+      <table style={{ borderCollapse:"collapse", fontSize: compact?11:12, width:"100%", minWidth: compact?0:1026 }}>
         <colgroup>
           {compact ? (
-            <><col style={{ width:80 }} /><col /><col style={{ width:70 }} /><col style={{ width:80 }} /></>
+            <><col style={{ width:50 }} /><col /><col style={{ width:65 }} /><col style={{ width:60 }} /></>
           ) : (
             <><col style={{ width:90 }} /><col style={{ width:150 }} /><col style={{ width:120 }} /><col style={{ width:150 }} />
             <col style={{ width:82 }} /><col style={{ width:82 }} />
@@ -1143,7 +1144,7 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
               <tr key={d} ref={isTd ? todayRef : null}
                 style={{ background: isTd?"rgba(74,158,255,0.07)":"", ...(isPst?{opacity:0.55}:{}) }}>
                 <td style={{
-                  padding:"8px 12px", borderBottom:`1px solid ${G.bdl}`, whiteSpace:"nowrap", fontWeight:600,
+                  padding: compact?"6px 8px":"8px 12px", borderBottom:`1px solid ${G.bdl}`, whiteSpace:"nowrap", fontWeight:600,
                   ...(!compact ? { position:"sticky", left:0, zIndex:1, background: isTd?"rgba(74,158,255,0.07)":G.bgc } : {}),
                 }}>
                   {isTd && <PulseDot />}
@@ -1157,15 +1158,15 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
                 {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                   <TransferTags items={dayMap[d].trs} onDel={onDelManual} onEdit={onEditManual} />
                 </td>}
-                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
+                <td style={{ padding: compact?"6px 8px":"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                   <Tags items={dayMap[d].exp} typeOverride="exp" onDel={onDelManual} onEdit={onEditManual} />
                 </td>
                 {!compact && <NumCell val={dayInc} prefix="+" color={G.green} zero />}
-                <NumCell val={dayExp} prefix="-" color={G.red}   zero />
+                <NumCell val={dayExp} prefix="-" color={G.red} zero compact={compact} />
                 {!compact && <BalCell val={kbB} />}
                 {!compact && <BalCell val={shB} />}
                 {!compact && <BalCell val={totB} bold />}
-                {compact && <BalCell val={totB} bold />}
+                {compact && <BalCell val={totB} bold compact />}
                 {!compact && <td style={{ padding:"8px 12px", borderBottom:`1px solid ${G.bdl}` }}>
                   <button onClick={() => onAddDay(d)}
                     style={{ display:"inline-flex", alignItems:"center", gap:2, padding:"2px 7px", borderRadius:12, fontSize:10, cursor:"pointer", border:`1px dashed rgba(255,255,255,0.12)`, background:"none", color:G.tm, fontFamily:"inherit" }}>

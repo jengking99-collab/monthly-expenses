@@ -289,12 +289,15 @@ export default function App() {
   const [modal,    setModal]    = useState(null);
   const [statTab,  setStatTab]  = useState("month");
   const [statYear, setStatYear] = useState(today.getFullYear());
-  const [compactDaily, setCompactDaily] = useState(false);
+  const [compactDaily, setCompactDaily] = useState(() => window.innerWidth < 768);
   const fileRef    = useRef();
   const jsonRef    = useRef();
   const contentRef = useRef(null);
   const isMobile = useMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ── compactDaily: 모바일=요약(true), 데스크탑=전체(false) ──
+  useEffect(() => { setCompactDaily(isMobile); }, [isMobile]);
 
   // ── Firebase sync state ──
   const syncTimerRef = useRef(null);
@@ -721,7 +724,9 @@ export default function App() {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [{wch:8},{wch:5},{wch:20},{wch:6},{wch:16},{wch:12},{wch:12},{wch:12},{wch:12}];
     XLSX.utils.book_append_sheet(wb, ws, `${month}월 지출내역`);
-    XLSX.writeFile(wb, `${year}년_${pad(month)}월_지출내역.xlsx`);
+    const expD = new Date();
+    const expDateStr = `${expD.getFullYear()}${pad(expD.getMonth()+1)}${pad(expD.getDate())}`;
+    XLSX.writeFile(wb, `${year}년_${pad(month)}월_지출내역_${expDateStr}.xlsx`);
     showToast(`${year}년 ${month}월 엑셀 저장 완료`);
   };
 
@@ -760,6 +765,7 @@ export default function App() {
         onStats={() => { setModal("stats"); setStatTab("month"); closeSidebar(); }}
         onExportAll={exportAllData}
         onImportAll={() => jsonRef.current.click()}
+        onCalc={() => { setModal("calc"); closeSidebar(); }}
         syncKey={syncKey} syncStatus={syncStatus}
         onSync={() => { setModal("sync"); closeSidebar(); }}
       />
@@ -831,10 +837,12 @@ export default function App() {
                       <span style={{ color:G.blue, fontWeight:600 }}>신한 {fmtW(carryover.sh)}</span>
                     </div>
                   )}
-                  <div style={{ display:"flex", border:`1px solid ${G.bd}`, borderRadius:8, overflow:"hidden", flexShrink:0 }}>
-                    <button onClick={() => setCompactDaily(false)} style={{ padding:"4px 10px", fontSize:11, background: !compactDaily?G.blueDim:"none", color: !compactDaily?G.blue:G.t2, border:"none", borderRight:`1px solid ${G.bd}`, cursor:"pointer", fontFamily:"inherit" }}>전체</button>
-                    <button onClick={() => setCompactDaily(true)}  style={{ padding:"4px 10px", fontSize:11, background:  compactDaily?G.blueDim:"none", color:  compactDaily?G.blue:G.t2, border:"none", cursor:"pointer", fontFamily:"inherit" }}>요약</button>
-                  </div>
+                  {isMobile && (
+                    <div style={{ display:"flex", border:`1px solid ${G.bd}`, borderRadius:8, overflow:"hidden", flexShrink:0 }}>
+                      <button onClick={() => setCompactDaily(false)} style={{ padding:"4px 10px", fontSize:11, background: !compactDaily?G.blueDim:"none", color: !compactDaily?G.blue:G.t2, border:"none", borderRight:`1px solid ${G.bd}`, cursor:"pointer", fontFamily:"inherit" }}>전체</button>
+                      <button onClick={() => setCompactDaily(true)}  style={{ padding:"4px 10px", fontSize:11, background:  compactDaily?G.blueDim:"none", color:  compactDaily?G.blue:G.t2, border:"none", cursor:"pointer", fontFamily:"inherit" }}>요약</button>
+                    </div>
+                  )}
                   {!isMobile && <Btn variant="green" onClick={exportDailyExcel}>⬇️ 엑셀 저장</Btn>}
                   {!isMobile && <Btn variant="teal"  onClick={() => showToast(`${year}년 ${month}월 데이터 저장됨 ✓`)}>💾 저장</Btn>}
                 </div>
@@ -887,6 +895,9 @@ export default function App() {
       {modal==="stats" && (
         <StatsOverlay year={year} month={month} statYear={statYear} setStatYear={setStatYear} data={data} fixedVersions={fixedVersions} statTab={statTab} onTabChange={setStatTab} onClose={() => setModal(null)} getMonthTotals={getMonthTotals} />
       )}
+      {modal==="calc" && (
+        <CalcModal onClose={() => setModal(null)} />
+      )}
       {modal==="sync" && (
         <SyncModal
           syncKey={syncKey} syncStatus={syncStatus} lastSyncAt={lastSyncAt}
@@ -900,6 +911,122 @@ export default function App() {
       {toast && <Toast msg={toast.msg} type={toast.type} />}
       <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display:"none" }} onChange={handleImport} />
       <input ref={jsonRef} type="file" accept=".json"      style={{ display:"none" }} onChange={handleImportAll} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+//  CALC MODAL
+// ─────────────────────────────────────────────
+function CalcModal({ onClose }) {
+  const [display, setDisplay] = useState("0");
+  const [prevNum, setPrevNum] = useState(null);
+  const [pendingOp, setPendingOp] = useState(null);
+  const [exprLine, setExprLine] = useState("");
+  const [justEvaled, setJustEvaled] = useState(false);
+
+  const getNum = () => parseFloat(display) || 0;
+
+  const fmtDisp = (s) => {
+    const n = parseFloat(s);
+    if (!isFinite(n)) return "오류";
+    if (s.endsWith(".")) return Math.trunc(n).toLocaleString("ko-KR") + ".";
+    if (s.includes(".")) {
+      const [i, d] = s.split(".");
+      return parseInt(i).toLocaleString("ko-KR") + "." + d;
+    }
+    return n.toLocaleString("ko-KR");
+  };
+
+  const pressDigit = (d) => {
+    if (justEvaled) { setDisplay(d); setJustEvaled(false); return; }
+    setDisplay(prev => {
+      const clean = prev.replace(/,/g, "");
+      if (clean === "0" && d !== ".") return d;
+      if (clean.replace(/[^0-9]/g,"").length >= 12) return prev;
+      return clean + d;
+    });
+  };
+
+  const pressDot = () => {
+    if (justEvaled) { setDisplay("0."); setJustEvaled(false); return; }
+    if (!display.includes(".")) setDisplay(p => p + ".");
+  };
+
+  const applyOp = (a, op, b) => {
+    const r = op==="+"?a+b : op==="-"?a-b : op==="×"?a*b : op==="÷"&&b!==0?a/b : 0;
+    return Math.round(r * 1e10) / 1e10;
+  };
+
+  const pressOp = (op) => {
+    const cur = getNum();
+    if (pendingOp !== null && !justEvaled) {
+      const result = applyOp(prevNum, pendingOp, cur);
+      setDisplay(String(result));
+      setPrevNum(result);
+      setExprLine(`${fmtDisp(String(result))} ${op}`);
+    } else {
+      setPrevNum(cur);
+      setExprLine(`${fmtDisp(display)} ${op}`);
+    }
+    setPendingOp(op);
+    setJustEvaled(true);
+  };
+
+  const pressEquals = () => {
+    if (pendingOp === null || prevNum === null) return;
+    const cur = getNum();
+    const result = applyOp(prevNum, pendingOp, cur);
+    setExprLine(`${fmtDisp(String(prevNum))} ${pendingOp} ${fmtDisp(display)} =`);
+    setDisplay(String(result));
+    setPrevNum(null); setPendingOp(null); setJustEvaled(true);
+  };
+
+  const pressClear = () => {
+    setDisplay("0"); setPrevNum(null); setPendingOp(null); setExprLine(""); setJustEvaled(false);
+  };
+
+  const pressSign  = () => setDisplay(p => String(parseFloat(p) * -1));
+  const pressPct   = () => setDisplay(p => String(Math.round(parseFloat(p) / 100 * 1e10) / 1e10));
+
+  const bN  = { height:54, borderRadius:12, fontSize:18, fontWeight:500, cursor:"pointer", border:"none", fontFamily:"inherit", background:G.bg2,      color:G.t1   };
+  const bOp = { ...bN, background:G.blueDim, color:G.blue };
+  const bFn = { ...bN, background:G.bgh,     color:G.t2   };
+  const bEq = { ...bN, background:G.blue,    color:"#fff"  };
+
+  return (
+    <div style={css.overlay} onClick={onClose}>
+      <div style={{ ...css.modal, width:300, padding:18 }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+          <span style={{ fontSize:14, fontWeight:700 }}>🧮 계산기</span>
+          <XBtn onClick={onClose} />
+        </div>
+        <div style={{ background:G.bg2, borderRadius:10, padding:"8px 12px", marginBottom:12, textAlign:"right" }}>
+          <div style={{ fontSize:10, color:G.tm, minHeight:15, marginBottom:3 }}>{exprLine}</div>
+          <div style={{ fontSize:28, fontWeight:700, color:G.t1, letterSpacing:"-0.5px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fmtDisp(display)}</div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
+          <button style={bFn} onClick={pressClear}>AC</button>
+          <button style={bFn} onClick={pressSign}>±</button>
+          <button style={bFn} onClick={pressPct}>%</button>
+          <button style={bOp} onClick={()=>pressOp("÷")}>÷</button>
+          <button style={bN}  onClick={()=>pressDigit("7")}>7</button>
+          <button style={bN}  onClick={()=>pressDigit("8")}>8</button>
+          <button style={bN}  onClick={()=>pressDigit("9")}>9</button>
+          <button style={bOp} onClick={()=>pressOp("×")}>×</button>
+          <button style={bN}  onClick={()=>pressDigit("4")}>4</button>
+          <button style={bN}  onClick={()=>pressDigit("5")}>5</button>
+          <button style={bN}  onClick={()=>pressDigit("6")}>6</button>
+          <button style={bOp} onClick={()=>pressOp("-")}>−</button>
+          <button style={bN}  onClick={()=>pressDigit("1")}>1</button>
+          <button style={bN}  onClick={()=>pressDigit("2")}>2</button>
+          <button style={bN}  onClick={()=>pressDigit("3")}>3</button>
+          <button style={bOp} onClick={()=>pressOp("+")}>+</button>
+          <button style={{ ...bN, gridColumn:"span 2" }} onClick={()=>pressDigit("0")}>0</button>
+          <button style={bN}  onClick={pressDot}>.</button>
+          <button style={bEq} onClick={pressEquals}>=</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -984,7 +1111,7 @@ function SyncModal({ syncKey, syncStatus, lastSyncAt, onConnect, onDisconnect, o
 // ─────────────────────────────────────────────
 //  SIDEBAR
 // ─────────────────────────────────────────────
-function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, onExportAll, onImportAll, isMobile, sidebarOpen, onClose, syncKey, syncStatus, onSync }) {
+function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, onExportAll, onImportAll, onCalc, isMobile, sidebarOpen, onClose, syncKey, syncStatus, onSync }) {
   const isCurrentYear = today.getFullYear() === year;
   const sidebarStyle = isMobile
     ? { ...css.sidebar, position:"fixed", top:0, left:0, height:"100vh", zIndex:200,
@@ -996,7 +1123,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.6_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.7_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1038,7 +1165,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
           { icon:"⬇️", label:"고정항목 내보내기", fn: onExportFixed, col: G.green  },
           { icon:"⬆️", label:"고정항목 가져오기", fn: onImport,      col: G.amber  },
           { icon:"📊", label:"통계 보기",         fn: onStats,       col: G.purple },
-          { icon:"🧮", label:"계산기",             fn: () => window.electronAPI?.openCalculator?.(), col: G.teal },
+          { icon:"🧮", label:"계산기",             fn: onCalc, col: G.teal },
           { icon:"📤", label:"전체 내보내기(JSON)", fn: onExportAll,  col: G.blue   },
           { icon:"📥", label:"전체 가져오기(JSON)", fn: onImportAll,  col: G.amber  },
         ].map(({ icon, label, fn, col }) => (

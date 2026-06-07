@@ -730,6 +730,68 @@ export default function App() {
     showToast(`${year}년 ${month}월 엑셀 저장 완료`);
   };
 
+  // ── Excel export: 전체 월별 지출내역 (모든 월 → 시트별) ──
+  const exportAllMonthsExcel = () => {
+    const keys = Object.keys(data).sort();
+    if (keys.length === 0) { showToast("저장된 데이터가 없습니다", "err"); return; }
+
+    const wb  = XLSX.utils.book_new();
+    const expD = new Date();
+    const expDateStr = `${expD.getFullYear()}${pad(expD.getMonth()+1)}${pad(expD.getDate())}`;
+
+    // ── Sheet 1: 월별 요약 ──
+    const sumAoa = [["년월", "총 수입(원)", "총 지출(원)", "순 손익(원)"]];
+    keys.forEach(k => {
+      const [y, m] = k.split("-").map(Number);
+      const { inc, exp } = getMonthTotals(y, m);
+      sumAoa.push([`${y}년 ${m}월`, inc, exp, inc - exp]);
+    });
+    const sumWs = XLSX.utils.aoa_to_sheet(sumAoa);
+    sumWs["!cols"] = [{wch:12},{wch:14},{wch:14},{wch:14}];
+    XLSX.utils.book_append_sheet(wb, sumWs, "월별 요약");
+
+    // ── Sheet 2~N: 월별 상세 ──
+    keys.forEach(k => {
+      const [y, m] = k.split("-").map(Number);
+      const d     = daysInMonth(y, m);
+      const entry = data[k] || {};
+      const rows  = entry.rows || [];
+      const fixedItems = fixedForMonth(fixedVersions, y, m);
+
+      // [sortKey, 날짜, 요일, 항목명, 구분, 자산, 금액, 메모]
+      const dataRows = [];
+
+      fixedItems.forEach(fi => {
+        if (fi.day < 1 || fi.day > d || !(fi.amount > 0)) return;
+        const dow = WD[new Date(y, m - 1, fi.day).getDay()];
+        dataRows.push([fi.day, `${m}/${fi.day}`, dow, fi.name, fi.type==="income"?"수입(고정)":"지출(고정)", fi.asset, fi.amount, ""]);
+      });
+
+      rows.filter(r => !r.isSub && r.day >= 1 && r.day <= d).forEach(r => {
+        const dow = WD[new Date(y, m - 1, r.day).getDay()];
+        if (r.isTransfer) {
+          dataRows.push([r.day, `${m}/${r.day}`, dow, r.name||"이체", "이체", `${r.fromAsset}→${r.toAsset}`, r.amount, r.memo||""]);
+        } else {
+          const isInc = (r.income||0) > 0;
+          dataRows.push([r.day, `${m}/${r.day}`, dow, r.name, isInc?"수입":"지출", r.asset, isInc?(r.income||0):(r.expense||0), r.memo||""]);
+        }
+      });
+
+      // 날짜 오름차순 정렬
+      dataRows.sort((a, b) => a[0] - b[0]);
+
+      const aoa = [["날짜","요일","항목명","구분","자산","금액(원)","메모"]];
+      dataRows.forEach(r => aoa.push(r.slice(1))); // sortKey 열 제거
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [{wch:8},{wch:5},{wch:20},{wch:10},{wch:16},{wch:12},{wch:15}];
+      XLSX.utils.book_append_sheet(wb, ws, `${y}년_${pad(m)}월`);
+    });
+
+    XLSX.writeFile(wb, `전체_지출내역_${expDateStr}.xlsx`);
+    showToast(`전체 ${keys.length}개월 엑셀 저장 완료`);
+  };
+
   // ── Render ──
   const dayMap = buildDayMap();
   const { balKb, balSh } = buildBalances(dayMap);
@@ -765,6 +827,7 @@ export default function App() {
         onStats={() => { setModal("stats"); setStatTab("month"); closeSidebar(); }}
         onExportAll={exportAllData}
         onImportAll={() => jsonRef.current.click()}
+        onExportAllExcel={exportAllMonthsExcel}
         onCalc={() => { setModal("calc"); closeSidebar(); }}
         syncKey={syncKey} syncStatus={syncStatus}
         onSync={() => { setModal("sync"); closeSidebar(); }}
@@ -1111,7 +1174,7 @@ function SyncModal({ syncKey, syncStatus, lastSyncAt, onConnect, onDisconnect, o
 // ─────────────────────────────────────────────
 //  SIDEBAR
 // ─────────────────────────────────────────────
-function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, onExportAll, onImportAll, onCalc, isMobile, sidebarOpen, onClose, syncKey, syncStatus, onSync }) {
+function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, onExportFixed, onImport, onStats, onExportAll, onImportAll, onExportAllExcel, onCalc, isMobile, sidebarOpen, onClose, syncKey, syncStatus, onSync }) {
   const isCurrentYear = today.getFullYear() === year;
   const sidebarStyle = isMobile
     ? { ...css.sidebar, position:"fixed", top:0, left:0, height:"100vh", zIndex:200,
@@ -1161,13 +1224,14 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
       {/* 액션 버튼 */}
       <div style={{ marginTop:"auto", borderTop:`1px solid ${G.bd}`, paddingTop:10, display:"flex", flexDirection:"column", gap:2 }}>
         {[
-          { icon:"🔒", label:"고정 항목 관리",    fn: onFixedTab,    col: G.t2     },
-          { icon:"⬇️", label:"고정항목 내보내기", fn: onExportFixed, col: G.green  },
-          { icon:"⬆️", label:"고정항목 가져오기", fn: onImport,      col: G.amber  },
-          { icon:"📊", label:"통계 보기",         fn: onStats,       col: G.purple },
-          { icon:"🧮", label:"계산기",             fn: onCalc, col: G.teal },
-          { icon:"📤", label:"전체 내보내기(JSON)", fn: onExportAll,  col: G.blue   },
-          { icon:"📥", label:"전체 가져오기(JSON)", fn: onImportAll,  col: G.amber  },
+          { icon:"🔒", label:"고정 항목 관리",       fn: onFixedTab,       col: G.t2     },
+          { icon:"⬇️", label:"고정항목 내보내기",  fn: onExportFixed,    col: G.green  },
+          { icon:"⬆️", label:"고정항목 가져오기",  fn: onImport,         col: G.amber  },
+          { icon:"📊", label:"통계 보기",            fn: onStats,          col: G.purple },
+          { icon:"🧮", label:"계산기",               fn: onCalc,           col: G.teal   },
+          { icon:"📗", label:"전체 지출내역 엑셀",   fn: onExportAllExcel, col: G.green  },
+          { icon:"📤", label:"전체 내보내기(JSON)",  fn: onExportAll,      col: G.blue   },
+          { icon:"📥", label:"전체 가져오기(JSON)",  fn: onImportAll,      col: G.amber  },
         ].map(({ icon, label, fn, col }) => (
           <button key={label} onClick={fn}
             style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", borderRadius:10, cursor:"pointer", color:col, fontSize:12, border:"none", background:"none", fontFamily:"inherit", width:"100%", textAlign:"left" }}>

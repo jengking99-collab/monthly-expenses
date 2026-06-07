@@ -12,7 +12,8 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 // ─────────────────────────────────────────────
 const WD     = ["일","월","화","수","목","금","토"];
 const MO     = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
-const ASSETS = ["KB국민은행","신한은행","KB국민카드","하나카드","삼성카드","카카오뱅크","삼성 앱카드","기타"];
+const ASSETS      = ["KB국민은행","신한은행","KB국민카드","하나카드","삼성카드","카카오뱅크","삼성 앱카드","기타"];
+const ITEM_NAMES  = ["잔액보정","카드결제","혜인용돈","이자","교통비","출장비","단기서비스","금융대출","이체","기타"];
 const COLORS = ["#4a9eff","#f87171","#34d399","#fbbf24","#a78bfa","#fb923c","#38bdf8","#f472b6","#a3e635","#e879f9"];
 const YEARS  = Array.from({ length: 2040 - 2020 + 1 }, (_, i) => 2020 + i);
 
@@ -1204,7 +1205,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.8_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.9_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1466,21 +1467,24 @@ function FixedTab({ fixed, onUpdate, onDel, onAdd }) {
 function AddModal({ year, month, initDay, onSave, onClose }) {
   const [form, setForm] = useState({
     date: `${year}-${pad(month)}-${pad(initDay)}`,
-    name: "", amount: "", type: "expense", asset: "KB국민은행",
+    nameCat: "기타", nameCustom: "",
+    amount: "", type: "expense", asset: "KB국민은행",
     fromAsset: "KB국민은행", toAsset: "신한은행", memo: ""
   });
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const save = () => {
-    if (!form.date || !form.name.trim()) return;
+    if (!form.date) return;
+    const name = form.nameCat !== "기타" ? form.nameCat : form.nameCustom.trim();
+    if (!name) return;
     const amt = Number(form.amount);
     if (!amt || amt <= 0) return;
     const [y, m, d] = form.date.split("-").map(Number);
     if (form.type === "transfer") {
       if (form.fromAsset === form.toAsset) return;
-      onSave({ _year: y, _month: m, day: d, name: form.name.trim(), amount: amt, type: "transfer", fromAsset: form.fromAsset, toAsset: form.toAsset, memo: form.memo });
+      onSave({ _year: y, _month: m, day: d, name, amount: amt, type: "transfer", fromAsset: form.fromAsset, toAsset: form.toAsset, memo: form.memo });
     } else {
-      onSave({ _year: y, _month: m, day: d, name: form.name.trim(), amount: amt, type: form.type, asset: form.asset, memo: form.memo });
+      onSave({ _year: y, _month: m, day: d, name, amount: amt, type: form.type, asset: form.asset, memo: form.memo });
     }
   };
 
@@ -1496,7 +1500,15 @@ function AddModal({ year, month, initDay, onSave, onClose }) {
           항목 추가 <XBtn onClick={onClose} />
         </div>
         <div style={fgSt}><label style={lblSt}>날짜</label><input type="date" style={inSt} value={form.date} onChange={e=>set("date",e.target.value)} /></div>
-        <div style={fgSt}><label style={lblSt}>내용(항목명)</label><input type="text" style={inSt} placeholder="예: 외식비, 이체..." value={form.name} onChange={e=>set("name",e.target.value)} /></div>
+        <div style={fgSt}>
+          <label style={lblSt}>항목명</label>
+          <select style={selSt} value={form.nameCat} onChange={e=>set("nameCat",e.target.value)}>
+            {ITEM_NAMES.map(n => <option key={n} style={{background:G.bg2}}>{n}</option>)}
+          </select>
+          {form.nameCat === "기타" && (
+            <input type="text" style={{...inSt, marginTop:6}} placeholder="직접 입력" value={form.nameCustom} onChange={e=>set("nameCustom",e.target.value)} />
+          )}
+        </div>
         <div style={fgSt}><label style={lblSt}>금액(원)</label><CommaInput style={inSt} value={form.amount} onChange={v=>set("amount",v)} /></div>
         <div style={fgSt}>
           <label style={lblSt}>구분</label>
@@ -1605,27 +1617,30 @@ function BankModal({ bank, year, month, dim, onSave, onClose }) {
 function EditRowModal({ row, rKey, dim, onSave, onClose }) {
   const isTr     = !!row.isTransfer;
   const isIncome = !isTr && (row.income || 0) > 0;
+  // 기존 항목명 → ITEM_NAMES 매핑 (포함되면 해당 카테고리, 없으면 '기타'+직접입력)
+  const nameToFields = (n) => ITEM_NAMES.includes(n) ? { nameCat: n, nameCustom: "" } : { nameCat: "기타", nameCustom: n || "" };
   const [form, setForm] = useState(isTr ? {
-    day: String(row.day), name: row.name || "",
+    day: String(row.day), ...nameToFields(row.name || ""),
     amount: String(row.amount || 0),
     fromAsset: row.fromAsset || "KB국민은행", toAsset: row.toAsset || "신한은행", memo: row.memo || "",
   } : {
-    day: String(row.day), name: row.name || "",
+    day: String(row.day), ...nameToFields(row.name || ""),
     amount: String(isIncome ? (row.income || 0) : (row.expense || 0)),
     type: isIncome ? "income" : "expense", asset: row.asset || "KB국민은행", memo: row.memo || "",
   });
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const save = () => {
-    if (!form.name.trim()) return;
+    const name = form.nameCat !== "기타" ? form.nameCat : form.nameCustom.trim();
+    if (!name) return;
     const amt = Number(form.amount);
     if (!amt || amt <= 0) return;
     const d = Math.min(Math.max(Number(form.day) || 1, 1), dim);
     if (isTr) {
       if (form.fromAsset === form.toAsset) return;
-      onSave(rKey, row.id, { day: d, name: form.name.trim(), fromAsset: form.fromAsset, toAsset: form.toAsset, amount: amt, memo: form.memo });
+      onSave(rKey, row.id, { day: d, name, fromAsset: form.fromAsset, toAsset: form.toAsset, amount: amt, memo: form.memo });
     } else {
-      onSave(rKey, row.id, { day: d, name: form.name.trim(), asset: form.asset, expense: form.type==="expense"?amt:0, income: form.type==="income"?amt:0, memo: form.memo });
+      onSave(rKey, row.id, { day: d, name, asset: form.asset, expense: form.type==="expense"?amt:0, income: form.type==="income"?amt:0, memo: form.memo });
     }
   };
 
@@ -1644,7 +1659,15 @@ function EditRowModal({ row, rKey, dim, onSave, onClose }) {
           <label style={lblSt}>일(1~{dim})</label>
           <input type="number" min={1} max={dim} style={inSt} value={form.day} onChange={e=>set("day",e.target.value)} />
         </div>
-        <div style={fgSt}><label style={lblSt}>내용(항목명)</label><input type="text" style={inSt} value={form.name} onChange={e=>set("name",e.target.value)} /></div>
+        <div style={fgSt}>
+          <label style={lblSt}>항목명</label>
+          <select style={selSt} value={form.nameCat} onChange={e=>set("nameCat",e.target.value)}>
+            {ITEM_NAMES.map(n => <option key={n} style={{background:G.bg2}}>{n}</option>)}
+          </select>
+          {form.nameCat === "기타" && (
+            <input type="text" style={{...inSt, marginTop:6}} placeholder="직접 입력" value={form.nameCustom} onChange={e=>set("nameCustom",e.target.value)} />
+          )}
+        </div>
         <div style={fgSt}><label style={lblSt}>금액(원)</label><CommaInput style={inSt} value={form.amount} onChange={v=>set("amount",v)} /></div>
         {isTr ? (
           <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:6, marginBottom:12 }}>

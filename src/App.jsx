@@ -731,18 +731,36 @@ export default function App() {
   };
 
   // ── Excel export: 전체 월별 지출내역 (모든 월 → 시트별) ──
+  // ── Excel export: 전체 월별 지출내역 (Sheet1: 월별 요약 / Sheet2: 전체 데이터) ──
   const exportAllMonthsExcel = () => {
-    const keys = Object.keys(data).sort();
-    if (keys.length === 0) { showToast("저장된 데이터가 없습니다", "err"); return; }
+    // 1. 데이터 범위 결정: fixedVersions + data 키 중 가장 오래된 달 ~ 현재 달
+    const dataKeys     = Object.keys(data);
+    const fixedFroms   = fixedVersions.map(v => v.effectiveFrom).filter(Boolean);
+    const allRefKeys   = [...dataKeys, ...fixedFroms].sort();
+    if (allRefKeys.length === 0) { showToast("저장된 데이터가 없습니다", "err"); return; }
 
-    const wb  = XLSX.utils.book_new();
+    const [startY, startM] = allRefKeys[0].split("-").map(Number);
+    const endY = today.getFullYear();
+    const endM = today.getMonth() + 1;
+
+    // 2. 유효 달 목록 생성 (수입+지출 합계 > 0 이거나 수동 행 존재)
+    const allMonths = [];
+    let cy = startY, cm = startM;
+    while (mKey(cy, cm) <= mKey(endY, endM)) {
+      const { inc, exp } = getMonthTotals(cy, cm);
+      const hasRows = (data[mKey(cy, cm)]?.rows || []).some(r => !r.isSub);
+      if (inc > 0 || exp > 0 || hasRows) allMonths.push({ y: cy, m: cm });
+      cm++; if (cm > 12) { cm = 1; cy++; }
+    }
+    if (allMonths.length === 0) { showToast("저장된 데이터가 없습니다", "err"); return; }
+
+    const wb = XLSX.utils.book_new();
     const expD = new Date();
     const expDateStr = `${expD.getFullYear()}${pad(expD.getMonth()+1)}${pad(expD.getDate())}`;
 
     // ── Sheet 1: 월별 요약 ──
     const sumAoa = [["년월", "총 수입(원)", "총 지출(원)", "순 손익(원)"]];
-    keys.forEach(k => {
-      const [y, m] = k.split("-").map(Number);
+    allMonths.forEach(({ y, m }) => {
       const { inc, exp } = getMonthTotals(y, m);
       sumAoa.push([`${y}년 ${m}월`, inc, exp, inc - exp]);
     });
@@ -750,46 +768,46 @@ export default function App() {
     sumWs["!cols"] = [{wch:12},{wch:14},{wch:14},{wch:14}];
     XLSX.utils.book_append_sheet(wb, sumWs, "월별 요약");
 
-    // ── Sheet 2~N: 월별 상세 ──
-    keys.forEach(k => {
-      const [y, m] = k.split("-").map(Number);
+    // ── Sheet 2: 전체 데이터 (모든 달 한 시트) ──
+    const allAoa = [["년월","날짜","요일","항목명","구분","자산","금액(원)","메모"]];
+    allMonths.forEach(({ y, m }) => {
       const d     = daysInMonth(y, m);
-      const entry = data[k] || {};
-      const rows  = entry.rows || [];
+      const rows  = data[mKey(y, m)]?.rows || [];
       const fixedItems = fixedForMonth(fixedVersions, y, m);
+      const ymLabel = `${y}년 ${m}월`;
 
-      // [sortKey, 날짜, 요일, 항목명, 구분, 자산, 금액, 메모]
+      // [sortKey, ...cols] — sortKey = day (정렬 후 제거)
       const dataRows = [];
 
       fixedItems.forEach(fi => {
         if (fi.day < 1 || fi.day > d || !(fi.amount > 0)) return;
         const dow = WD[new Date(y, m - 1, fi.day).getDay()];
-        dataRows.push([fi.day, `${m}/${fi.day}`, dow, fi.name, fi.type==="income"?"수입(고정)":"지출(고정)", fi.asset, fi.amount, ""]);
+        dataRows.push([fi.day, ymLabel, `${m}/${fi.day}`, dow, fi.name,
+          fi.type==="income"?"수입(고정)":"지출(고정)", fi.asset, fi.amount, ""]);
       });
 
       rows.filter(r => !r.isSub && r.day >= 1 && r.day <= d).forEach(r => {
         const dow = WD[new Date(y, m - 1, r.day).getDay()];
         if (r.isTransfer) {
-          dataRows.push([r.day, `${m}/${r.day}`, dow, r.name||"이체", "이체", `${r.fromAsset}→${r.toAsset}`, r.amount, r.memo||""]);
+          dataRows.push([r.day, ymLabel, `${m}/${r.day}`, dow, r.name||"이체",
+            "이체", `${r.fromAsset}→${r.toAsset}`, r.amount, r.memo||""]);
         } else {
           const isInc = (r.income||0) > 0;
-          dataRows.push([r.day, `${m}/${r.day}`, dow, r.name, isInc?"수입":"지출", r.asset, isInc?(r.income||0):(r.expense||0), r.memo||""]);
+          dataRows.push([r.day, ymLabel, `${m}/${r.day}`, dow, r.name,
+            isInc?"수입":"지출", r.asset, isInc?(r.income||0):(r.expense||0), r.memo||""]);
         }
       });
 
-      // 날짜 오름차순 정렬
       dataRows.sort((a, b) => a[0] - b[0]);
-
-      const aoa = [["날짜","요일","항목명","구분","자산","금액(원)","메모"]];
-      dataRows.forEach(r => aoa.push(r.slice(1))); // sortKey 열 제거
-
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws["!cols"] = [{wch:8},{wch:5},{wch:20},{wch:10},{wch:16},{wch:12},{wch:15}];
-      XLSX.utils.book_append_sheet(wb, ws, `${y}년_${pad(m)}월`);
+      dataRows.forEach(r => allAoa.push(r.slice(1))); // sortKey(day) 제거
     });
 
+    const allWs = XLSX.utils.aoa_to_sheet(allAoa);
+    allWs["!cols"] = [{wch:10},{wch:8},{wch:5},{wch:20},{wch:10},{wch:16},{wch:12},{wch:15}];
+    XLSX.utils.book_append_sheet(wb, allWs, "전체 데이터");
+
     XLSX.writeFile(wb, `전체_지출내역_${expDateStr}.xlsx`);
-    showToast(`전체 ${keys.length}개월 엑셀 저장 완료`);
+    showToast(`전체 ${allMonths.length}개월 엑셀 저장 완료`);
   };
 
   // ── Render ──
@@ -1186,7 +1204,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.7_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.8_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}

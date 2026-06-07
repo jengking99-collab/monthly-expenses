@@ -1,6 +1,6 @@
 # 월 지출관리 프로젝트 세션 요약
 
-> 마지막 업데이트: 2026-06-07 (V2.6_Web)
+> 마지막 업데이트: 2026-06-07 (V3.0_Web)
 
 ---
 
@@ -11,7 +11,7 @@
 | **경로** | `D:\Claude_Code\monthly_expenses` |
 | **목적** | 매월 고정/변동 수입·지출 관리, 통장별 잔액 실시간 추적 |
 | **스택** | React 19 + Vite 7 + Recharts + xlsx + Electron 32 |
-| **현재 버전** | **V2.6_Web** (`package.json` version: `2.6.0`) |
+| **현재 버전** | **V3.0_Web** (`package.json` version: `3.0.0`) |
 | **웹 배포** | https://monthly-expenses-navy.vercel.app/ |
 | **GitHub** | jengking99-collab/monthly-expenses |
 | **Electron 배포** | `releases/v15/월지출관리_v1.5.exe` (포터블, 마지막 빌드) |
@@ -50,7 +50,7 @@ monthly_expenses/
 ├── build-electron.mjs              ← Electron 빌드 스크립트
 ├── vite.config.js                  ← Vite 7, base: './'(Electron) vs '/'(Web)
 ├── eslint.config.js
-├── package.json                    ← version: 2.6.0
+├── package.json                    ← version: 3.0.0
 ├── PROJECT_SUMMARY.md              ← 이 파일
 ├── 월지출앱_배포개발가이드.md         ← Vercel/PWA/모바일 배포 가이드
 ├── dev.log                         ← 개발 서버 로그 (자동생성, gitignore)
@@ -61,7 +61,7 @@ monthly_expenses/
 
 ---
 
-## 웹 기능 (V1.5.0 ~ V2.6_Web)
+## 웹 기능 (V1.5.0 ~ V3.0_Web)
 
 ### PWA (Progressive Web App)
 - `public/manifest.json`: 앱 이름, 아이콘, 테마색, standalone 모드
@@ -80,10 +80,11 @@ monthly_expenses/
 - **단일 스크롤 컨테이너**: 루트 div를 `overflow:auto` + `flex:1` + `minHeight:0`으로 설정 → 가로/세로 모두 처리
 - **헤더 고정** (`position:sticky top:0`): 단일 컨테이너 내에서 `<thead>` sticky 동작
 - **날짜 열 고정** (`position:sticky left:0`): 전체 모드에서 날짜 열 고정, `zIndex` 계층 조정
-- **전체/요약 토글**: `compactDaily` 상태로 전체(10컬럼) ↔ 요약(4컬럼) 전환
+- **전체/요약 토글**: 모바일에서만 버튼 표시, 데스크탑은 항상 전체 뷰. 모바일 기본값 '요약(compact)' (V2.7~)
 - **요약 모드 컬럼** (V2.5~): 날짜·지출내역·일지출·잔액(합계, 만원 단위 축약)
 - **요약 모드 레이아웃** (V2.6): 폰 화면 너비 자동 맞춤, `fmtM()` 함수로 잔액 만원 단위 표시, 셀 패딩·폰트 최적화
 - **최소 너비**: 전체 모드 `minWidth:1026`, 요약 모드 `minWidth:0` → 화면 축소 시 가로 스크롤 없이 자동 배분
+- **오늘 이동 버튼** (V3.0): 탭바 우측 배치. 클릭 시 년/월을 오늘로 이동 + 일별 탭 전환 + 오늘 행 자동 스크롤 (`scrollTrigger` prop으로 동월 재클릭도 동작)
 
 ### 고정항목 관리 (FixedTab)
 - **CSS grid → `<table>` 전환**: 열 공유 축이 없는 grid row 방식에서 native `<table>`로 전환
@@ -191,9 +192,10 @@ if (r.isTransfer) {
 | `SummaryCard` | KB잔액/신한잔액/총지출/총수입 |
 | `DailyTab` | 날짜별 잔액 추적 |
 | `FixedTab` | 고정항목 편집 |
-| `AddModal` | 항목 추가 (수입/지출/이체) |
-| `EditRowModal` | 수동 항목 수정 |
+| `AddModal` | 항목 추가 (수입/지출/이체), ITEM_NAMES 드롭다운 선택 (V2.9~) |
+| `EditRowModal` | 수동 항목 수정, 기존 항목명 자동 매핑 (V2.9~) |
 | `BankModal` | 잔액 기준일 설정 |
+| `CalcModal` | 앱 내 계산기 (사칙연산·AC·±·%, V2.7~) |
 | `StatsOverlay` | 년/월 통계 (PieChart + LineChart) |
 
 ---
@@ -300,6 +302,10 @@ process.env.VITE_ELECTRON = '1';  // 최상단에서 설정
 | **V2.4_Web** | **잔액 계산 버그 4종 수정: 이전달 이체 미반영·앵커 없을 때 잔액 미표시·이월 중복 표시·기준일 당일 거래 미반영** |
 | **V2.5_Web** | **모바일 요약 뷰: 날짜·지출내역·일지출·잔액(합계)으로 변경, 추가 버튼 제거** |
 | **V2.6_Web** | **모바일 요약 뷰 화면 자동 맞춤: fmtM(만원 축약)·폰트 11px·셀 패딩 최적화·컬럼 너비 재배분** |
+| **V2.7_Web** | **엑셀 파일명 날짜 추가, 전체/요약 버튼 모바일 전용+기본 요약, 계산기 CalcModal 구현** |
+| **V2.8_Web** | **전체 지출내역 엑셀: Sheet1 월별 요약 + Sheet2 전체 데이터 (고정항목 포함 전 기간)** |
+| **V2.9_Web** | **항목명 표준화: ITEM_NAMES 드롭다운 선택 (잔액보정·카드결제·혜인용돈·이자 등 10종)** |
+| **V3.0_Web** | **오늘 이동 버튼: 탭바 우측 배치, 클릭 시 년/월 이동 + 일별 탭 + 오늘 행 자동 스크롤** |
 
 ---
 

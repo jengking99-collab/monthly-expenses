@@ -291,6 +291,7 @@ export default function App() {
   const [statTab,  setStatTab]  = useState("month");
   const [statYear, setStatYear] = useState(today.getFullYear());
   const [compactDaily, setCompactDaily] = useState(() => window.innerWidth < 768);
+  const [todayScrollTrigger, setTodayScrollTrigger] = useState(0);
   const fileRef    = useRef();
   const jsonRef    = useRef();
   const contentRef = useRef(null);
@@ -825,6 +826,14 @@ export default function App() {
   const bankRefDay = bank.date ? (() => { const bd = new Date(bank.date); return bd.getFullYear()===year&&bd.getMonth()+1===month?bd.getDate():0; })() : 0;
 
   const closeSidebar = () => setSidebarOpen(false);
+
+  // ── 오늘 이동: 년/월을 오늘로 설정 + 일별 탭 + 오늘 행 스크롤 ──
+  const goToToday = () => {
+    setYear(today.getFullYear());
+    setMonth(today.getMonth() + 1);
+    setTab("daily");
+    setTodayScrollTrigger(n => n + 1);
+  };
   const scardMobile = isMobile ? { flex: "1 1 calc(50% - 5px)", minWidth: 0, padding: "8px 10px" } : {};
 
   return (
@@ -896,13 +905,17 @@ export default function App() {
           <div style={{ flexShrink:0, background:G.bg }}>
 
             {/* TabBar */}
-            <div style={{ display:"flex", gap:4, marginBottom:12, paddingTop:14 }}>
+            <div style={{ display:"flex", gap:4, marginBottom:12, paddingTop:14, alignItems:"center" }}>
               {[["daily","📅 일별 예상 잔액"],["fixed","⚙️ 고정 항목"]].map(([t, label]) => (
                 <button key={t} onClick={() => setTab(t)}
                   style={{ padding:"5px 12px", borderRadius:10, fontSize:12, fontWeight:500, cursor:"pointer", border:`1px solid ${G.bd}`, background: tab===t?G.blueDim:"none", color: tab===t?G.blue:G.t2, borderColor: tab===t?"rgba(74,158,255,0.2)":G.bd, fontFamily:"inherit" }}>
                   {label}
                 </button>
               ))}
+              <button onClick={goToToday}
+                style={{ marginLeft:"auto", padding:"5px 12px", borderRadius:10, fontSize:12, fontWeight:500, cursor:"pointer", border:`1px solid rgba(52,211,153,0.2)`, background:G.greenDim, color:G.green, fontFamily:"inherit", flexShrink:0 }}>
+                🏠 오늘 이동
+              </button>
             </div>
 
             {/* 일별 예상 잔액 탭 헤더 */}
@@ -952,7 +965,7 @@ export default function App() {
 
           </div>
           {/* ── 스크롤 영역 (테이블만) ── */}
-          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} compact={compactDaily} />}
+          {tab==="daily"  && <DailyTab year={year} month={month} today={today} dim={dim} dayMap={dayMap} balKb={balKb} balSh={balSh} carryover={carryover} refDay={bankRefDay} onAddDay={d => setModal({ type:"add", day:d })} onDelManual={delRow} onEditManual={it => { const row = (data[it.rKey]?.rows||[]).find(r=>r.id===it.id); if(row) setModal({ type:"edit", row, rKey:it.rKey }); }} compact={compactDaily} scrollTrigger={todayScrollTrigger} />}
           {tab==="fixed"  && <FixedTab fixed={fixed} onUpdate={updateFixed} onDel={delFixed} onAdd={addFixed} />}
         </div>
       </main>
@@ -1205,7 +1218,7 @@ function Sidebar({ year, month, today, onSelectYear, onSelectMonth, onFixedTab, 
     <aside style={sidebarStyle}>
       <div style={{ ...css.logo, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span>💰 <span style={{ color:G.blue }}>월 지출관리</span>
-          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V2.9_Web</small>
+          <small style={{ display:"block", fontSize:10, fontWeight:400, color:G.tm, marginTop:2 }}>V3.0_Web</small>
         </span>
         {isMobile && (
           <button onClick={onClose}
@@ -1294,7 +1307,7 @@ function SummaryCard({ label, badge, amount, color, sub, live, cardStyle, compac
 // ─────────────────────────────────────────────
 //  DAILY TAB
 // ─────────────────────────────────────────────
-function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual, compact }) {
+function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, refDay, onAddDay, onDelManual, onEditManual, compact, scrollTrigger }) {
   const isToday = (d) => year===today.getFullYear() && month===today.getMonth()+1 && d===today.getDate();
   const isPast  = (d) => new Date(year, month-1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const todayRef = useRef();
@@ -1307,7 +1320,7 @@ function DailyTab({ year, month, today, dim, dayMap, balKb, balSh, carryover, re
     const contRect = container.getBoundingClientRect();
     const newTop = container.scrollTop + rowRect.top - contRect.top - container.clientHeight / 2 + rowRect.height / 2;
     container.scrollTop = Math.max(0, newTop);
-  }, [month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [month, scrollTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const thBase = { position:"sticky", top:0, background:G.bgc, padding: compact?"6px 8px":"9px 12px", fontSize:10, fontWeight:600, color:G.tm, textTransform:"uppercase", letterSpacing:"0.5px", borderBottom:`1px solid ${G.bd}`, whiteSpace:"nowrap" };
 
